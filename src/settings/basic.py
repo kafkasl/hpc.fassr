@@ -13,6 +13,11 @@ FUNDAMENTAL_DB_PATH = os.path.join(PROJECT_ROOT, "../../data/fundamental-data.db
 GRAHAM_CRITERIA = "graham"
 SUPPORTED_CRITERIA = [GRAHAM_CRITERIA]
 
+
+# GRAHAM criteria settings
+GRAHAM = {'year': 2017,
+          'revenue_limit': int(1.5e3)}
+
 # Logger
 
 logging.basicConfig(level=logging.DEBUG,

@@ -3,6 +3,7 @@ from datetime import datetime
 from settings.basic import logging
 
 import settings.basic as cfg
+import pandas as pd
 
 import sqlite3
 
@@ -75,56 +76,15 @@ def _create_connection(db_file):
     return None
 
 
-def _select(query):
+def get_fundamental_df():
     conn = _create_connection(cfg.FUNDAMENTAL_DB_PATH)
+    data = pd.read_sql('SELECT * FROM dow30stocks_keyratios', conn)
 
-    cur = conn.cursor()
-    cur.execute(query)
+    # Set date as datetime field
+    data['date'] = pd.to_datetime(data['date'])
 
-    rows = cur.fetchall()
-
-    return rows
-
-
-def _get_symbol_indicator(symbol, indicator):
-    """
-    Returns revenue in millions of USD
-    :param conn: connection to DB
-    :return: rows with all
-    """
-
-    logging.debug("Querying for %s" % category[indicator])
-    query = "SELECT date, value\n" \
-            "FROM dow30stocks_keyratios\n" \
-            "WHERE `category`='%s' AND symbol='%s'\n" \
-            "GROUP BY symbol\n" \
-            "ORDER BY date" % (category[indicator], symbol)
-
-    return _select(query)
+    return data
 
 
-def get_revenue_per_year(s, years):
-    revenues = _get_symbol_indicator(symbol=s, indicator=REVENUE)
-    logging.debug("Revenues for symbol %s [%s]:\n" % (s, len(revenues)))
-    filtered_revenues = []
-    for date, r in revenues:
-        logging.debug(" %s: %s" % (date, r))
-
-        do = datetime.strptime(date, "%Y-%m-%d")
-        # revenue is reported in million of dollars, we convert it to dollars
-        revenue = r * 1e9
-        if do.year in years:
-            filtered_revenues.append({'date': do, 'revenue': revenue})
-
-    return filtered_revenues
-
-
-def get_symbols():
-    conn = _create_connection(cfg.FUNDAMENTAL_DB_PATH)
-
-    query = "SELECT DISTINCT symbol\n" \
-            "FROM dow30stocks_keyratios"
-    cur = conn.cursor()
-    cur.execute(query)
-
-    return [s[0] for s in cur.fetchall()]
+def get_symbols(data):
+    return set(data['symbol'])
