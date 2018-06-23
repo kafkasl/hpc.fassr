@@ -1,10 +1,17 @@
 # Graham criteria for stock screening
 from math import sqrt
+from functools import reduce
 from settings.basic import logging
 
 import settings.basic as cfg
-# import datetime as dt
 import pandas as pd
+
+
+def _filter(df, symbols):
+    # Filter symbols that do not meet the conditions
+    df = df[df['symbol'].isin(symbols)]
+
+    return df
 
 
 def _adequate_size_of_enterprise(df, year, limit):
@@ -19,14 +26,11 @@ def _adequate_size_of_enterprise(df, year, limit):
     # revenues = manager.get_revenue_per_year(symbol, (year,))
 
     # TODO check that all stocks in DOW 30 pass these filter (as expected?)
-    symbols = set(df.loc[(df['category'] == 'Revenue USD Mil') &
+    symbols = list(df.loc[(df['category'] == 'Revenue USD Mil') &
                          (df['value'] >= limit) &
-                         (df['date'].dt.year == year), 'symbol'])
+                         (df['date'].dt.year == year), 'symbol'].drop_duplicates())
 
-    # Filter symbols that do not meet the conditions
-    df = df[df['symbol'].isin(symbols)]
-
-    return df
+    return symbols
 
 
 def _strong_financial_conditions(df, year):
@@ -48,12 +52,9 @@ def _strong_financial_conditions(df, year):
         .rename(columns={'value': 'liabilities'})
 
     aux = pd.merge(assets, liabilities, on=['symbol', 'date'])
-    symbols = aux.loc[aux['assets'] > 2 * aux['liabilities'], 'symbol']
+    symbols = list(aux.loc[aux['assets'] > 2 * aux['liabilities'], 'symbol'].drop_duplicates())
 
-    # Filter symbols that do not meet the conditions
-    df = df.loc[df['symbol'].isin(symbols)]
-
-    return df
+    return symbols
 
 
 def _earnings_stability(df, year):
@@ -75,10 +76,7 @@ def _earnings_stability(df, year):
         if aux.loc[aux['symbol'] == s].sort_values('date', ascending=True)['value'].is_monotonic_increasing:
             symbols.append(s)
 
-    # Filter symbols that do not meet the conditions
-    df = df.loc[df['symbol'].isin(symbols)]
-
-    return df
+    return symbols
 
 
 def _dividends_record(df, year):
@@ -101,10 +99,7 @@ def _dividends_record(df, year):
         if len(aux.loc[aux == s]) == 10:
             symbols.append(s)
 
-    # Filter symbols that do not meet the conditions
-    df = df.loc[df['symbol'].isin(symbols)]
-
-    return df
+    return symbols
 
 
 # TODO: SHOULD CHECK ONLY LAST YEAR?
@@ -116,10 +111,20 @@ def _earnings_growth(df, year):
     :param year: current year for screening
     :return: dataframe without the symbols that do not meet the condition
     """
-    # Filter symbols that do not meet the conditions
-    df = df.loc[df['symbol'].isin(symbols)]
 
-    return df
+    current_eps = df.loc[(df['category'] == 'Earnings Per Share USD') &
+                         (df['date'].dt.year == year), ['symbol', 'value']] \
+        .rename(columns={'value': 'current_eps'})
+
+    last_year_eps = df.loc[(df['category'] == 'Earnings Per Share USD') &
+                           (df['date'].dt.year == year - 1), ['symbol', 'value']] \
+        .rename(columns={'value': 'last_year_eps'})
+
+    aux = pd.merge(current_eps, last_year_eps, on=['symbol'])
+
+    symbols = list(aux.loc[aux['current_eps'] > 1.03 * aux['last_year_eps'], 'symbol'].drop_duplicates())
+
+    return symbols
 
 
 def _graham_number(df, year):
@@ -131,18 +136,42 @@ def _graham_number(df, year):
     :param year: current year for screening
     :return: dataframe without the symbols that do not meet the condition
     """
-    pt = sqrt(22.5 * stock['eps'][0] * stock['bvps'][0])
-    # Filter symbols that do not meet the conditions
-    df = df.loc[df['symbol'].isin(symbols)]
 
-    return df
+    eps = df.loc[(df['category'] == 'Earnings Per Share USD') &
+                 (df['date'].dt.year == year), ['symbol', 'value']] \
+        .rename(columns={'value': 'eps'})
+
+    bvps = df.loc[(df['category'] == 'Book Value Per Share * USD') &
+                  (df['date'].dt.year == year), ['symbol', 'value']] \
+        .rename(columns={'value': 'bvps'})
+
+    per = df.loc[(df['category'] == 'Price to Earnings') &
+                  (df['date'].dt.year == year), ['symbol', 'value']] \
+        .rename(columns={'value': 'per'})
+
+    shares_number = df.loc[(df['category'] == 'Shares Mil') &
+                  (df['date'].dt.year == year), ['symbol', 'value']] \
+        .rename(columns={'value': 'shares_number'})
+
+    dfs = [eps, bvps, per, shares_number]
+    aux = reduce(lambda left, right: pd.merge(left, right, on='symbol'), dfs)
+
+
+    aux['pt'] = aux.apply(lambda x: sqrt(22.5 * x.eps * x.bvps), axis=1)
+    # TODO check if this is a valid way of computing the market price (number of shares is in millions)
+    # TODO this is wrong
+    aux['market_price'] = aux.apply(lambda x: x.per * x.eps, axis=1)
+
+    symbols = list(aux.loc[aux['market_price'] < aux['pt'], 'symbol'].drop_duplicates())
+
+    return symbols
 
 
 def screen_stocks(manager):
     """
     Filters out the stocks which do not meet all conditions
     revenue(x) > 1.5 billion
-    :param stocks: list of stocks in json format complying with
+    :param manager: data manager to get the data
     :return: list of the stocks that fulfill Graham's criteria
     """
     df = manager.get_fundamental_df()
@@ -151,16 +180,18 @@ def screen_stocks(manager):
     logging.debug("Symbols to be screened:")
     [logging.debug(s) for s in symbols]
 
-    df = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'], limit=cfg.GRAHAM['revenue_limit'])
-    df = _strong_financial_conditions(df=df, year=cfg.GRAHAM['year'])
-    df = _earnings_stability(df=df, year=cfg.GRAHAM['year'])
-    df = _dividends_record(df=df, year=cfg.GRAHAM['year'])
-    df = _earnings_growth(df=df, year=cfg.GRAHAM['year'])
-    df = _graham_number(df=df, year=cfg.GRAHAM['year'])
-    # symbols = [s for s in symbols if _strong_financial_conditions(s)]
-    # symbols = [s for s in symbols if _earnings_stability(s)]
-    # symbols = [s for s in symbols if _dividends_record(s)]
-    # symbols = [s for s in symbols if _earnings_growth(s)]
-    # symbols = [s for s in symbols if _graham_number(s)]
+    symbols = [None] * 6
+    symbols[0] = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'], limit=cfg.GRAHAM['revenue_limit'])
+    symbols[1] = _strong_financial_conditions(df=df, year=cfg.GRAHAM['year'])
+    symbols[2] = _earnings_stability(df=df, year=cfg.GRAHAM['year'])
+    symbols[3] = _dividends_record(df=df, year=cfg.GRAHAM['year'])
+    symbols[4] = _earnings_growth(df=df, year=cfg.GRAHAM['year'])
+    symbols[5] = _graham_number(df=df, year=cfg.GRAHAM['year'])
 
-    return symbols
+    for i, s in enumerate(symbols):
+        logging.info("Symbols passing condition %s: \n\t%s\n" % (i + 1, s))
+
+    # Flatten list to check which symbols pass all conditions
+    screened_symbols = set(symbols[0]).intersection(*symbols)
+
+    return screened_symbols
