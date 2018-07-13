@@ -27,8 +27,8 @@ def _adequate_size_of_enterprise(df, year, limit):
 
     # TODO check that all stocks in DOW 30 pass these filter (as expected?)
     symbols = list(df.loc[(df['category'] == 'Revenue USD Mil') &
-                         (df['value'] >= limit) &
-                         (df['date'].dt.year == year), 'symbol'].drop_duplicates())
+                          (df['value'] >= limit) &
+                          (df['date'].dt.year == year), 'symbol'].drop_duplicates())
 
     return symbols
 
@@ -73,7 +73,8 @@ def _earnings_stability(df, year):
     for s in set(df['symbol']):
         # for a given symbol, we order it by increasing year, select the values, and check if they are
         # monotonically increasing
-        if aux.loc[aux['symbol'] == s].sort_values('date', ascending=True)['value'].is_monotonic_increasing:
+        if aux.loc[aux['symbol'] == s].sort_values('date', ascending=True)[
+            'value'].is_monotonic_increasing:
             symbols.append(s)
 
     return symbols
@@ -122,7 +123,8 @@ def _earnings_growth(df, year):
 
     aux = pd.merge(current_eps, last_year_eps, on=['symbol'])
 
-    symbols = list(aux.loc[aux['current_eps'] > 1.03 * aux['last_year_eps'], 'symbol'].drop_duplicates())
+    symbols = list(
+        aux.loc[aux['current_eps'] > 1.03 * aux['last_year_eps'], 'symbol'].drop_duplicates())
 
     return symbols
 
@@ -146,16 +148,15 @@ def _graham_number(df, year):
         .rename(columns={'value': 'bvps'})
 
     per = df.loc[(df['category'] == 'Price to Earnings') &
-                  (df['date'].dt.year == year), ['symbol', 'value']] \
+                 (df['date'].dt.year == year), ['symbol', 'value']] \
         .rename(columns={'value': 'per'})
 
     shares_number = df.loc[(df['category'] == 'Shares Mil') &
-                  (df['date'].dt.year == year), ['symbol', 'value']] \
+                           (df['date'].dt.year == year), ['symbol', 'value']] \
         .rename(columns={'value': 'shares_number'})
 
     dfs = [eps, bvps, per, shares_number]
     aux = reduce(lambda left, right: pd.merge(left, right, on='symbol'), dfs)
-
 
     aux['pt'] = aux.apply(lambda x: sqrt(22.5 * x.eps * x.bvps), axis=1)
     # TODO check if this is a valid way of computing the market price (number of shares is in millions)
@@ -181,7 +182,8 @@ def screen_stocks(manager):
     [logging.debug(s) for s in symbols]
 
     symbols = [None] * 6
-    symbols[0] = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'], limit=cfg.GRAHAM['revenue_limit'])
+    symbols[0] = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'],
+                                              limit=cfg.GRAHAM['revenue_limit'])
     symbols[1] = _strong_financial_conditions(df=df, year=cfg.GRAHAM['year'])
     symbols[2] = _earnings_stability(df=df, year=cfg.GRAHAM['year'])
     symbols[3] = _dividends_record(df=df, year=cfg.GRAHAM['year'])
