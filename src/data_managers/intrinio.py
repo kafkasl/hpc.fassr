@@ -6,14 +6,16 @@ import base64
 import pandas as pd
 
 from requests.auth import HTTPBasicAuth
-from settings.basic import (INTRINIO_CACHE_PATH, intrinio_username, intrinio_password, DATE_FORMAT)
+from settings.basic import (iio_symbols, logging, INTRINIO_CACHE_PATH, intrinio_username, intrinio_password,
+                            DATE_FORMAT)
 from string import Template
 from datetime import datetime
 from functools import reduce
+from typing import Tuple
 
-_fundamental_template = Template('https://api.intrinio.com/historical_data?identifier=${'
-                                 'symbol}&item='
-                                 '${tag}&start_date=${start_date}&end_date=${end_date}')
+_symbols_url = Template("https://api.intrinio.com/companies?page_number=${page_number}")
+_fundamental_template = Template('https://api.intrinio.com/historical_data?identifier=${symbol}&item=${tag}'
+                                 '&start_date=${start_date}&end_date=${end_date}')
 
 
 # _revenue_template = Template('https://api.intrinio.com/historical_data?identifier=${symbol}&item='
@@ -21,8 +23,58 @@ _fundamental_template = Template('https://api.intrinio.com/historical_data?ident
 #                              'frequency}&type=${type}')
 
 
+def _call_and_cache(url: str, **kwargs) -> dict:
+    cached_file = os.path.join(INTRINIO_CACHE_PATH, base64.standard_b64encode(url.encode()).decode())
+
+    try:
+        no_cache = kwargs['no-cache']
+    except KeyError:
+        no_cache = False
+
+    data_json = {}
+    if os.path.exists(cached_file) and not no_cache:
+        logging.debug("Data was present in cache and cache is enabled, loading: %s" % cached_file)
+        with open(cached_file, 'r') as f:
+            data_json = json.loads(f.read())
+    else:
+        logging.info("Data was either not present in cache or it was disabled calling request: %s" % url)
+        r = requests.get(url, auth=HTTPBasicAuth(intrinio_username, intrinio_password))
+
+        if r.status_code != 200:
+            logging.error("Request status was: %s for URL: %s" % (r.status_code, url))
+            return data_json
+
+        data_json = json.loads(r.text)
+
+        if not len(data_json['data']) > 0:
+            logging.debug("Data field is empty.\nRequest URL: %s" % (url))
+
+        with open(cached_file, 'w') as f:
+            f.write(json.dumps(data_json))
+            logging.debug("Successfully cached url: %s to %s" % (url, cached_file))
+
+    return data_json
+
+
+def get_symbols(**kwargs) -> list:
+    curr_url = _symbols_url.substitute(page_number=1)
+    data_json = _call_and_cache(curr_url, **kwargs)
+
+    symbols = [r['ticker'] for r in data_json['data']]
+
+    total_pages = int(data_json['total_pages'])
+
+    for page_number in range(2, total_pages + 1):
+        curr_url = _symbols_url.substitute(page_number=page_number)
+        data_json = _call_and_cache(curr_url, **kwargs)
+
+        symbols.extend([r['ticker'] for r in data_json['data']])
+
+    return symbols
+
+
 def get_tag(symbol: str, tag: str, start_date: datetime, end_date: datetime, frequency: str = '',
-            type: str = ''):
+            type_opt: str = '', **kwargs) -> dict:
     """
 
     :param symbol:
@@ -42,29 +94,12 @@ def get_tag(symbol: str, tag: str, start_date: datetime, end_date: datetime, fre
     url = _fundamental_template.substitute(symbol=symbol, tag=tag, start_date=start_date,
                                            end_date=end_date)
 
-    cached_file = os.path.join(INTRINIO_CACHE_PATH, base64.standard_b64encode(url.encode(
+    data_json = _call_and_cache(url, **kwargs)
 
-    )).decode())
-
-    print("Cached file: %s" % cached_file)
-    if os.path.exists(cached_file):
-        print("Data was present in cache, loading: %s" % cached_file)
-        data_json = json.loads(open(cached_file, 'r').read())
-    else:
-        print("Data was not present in cache calling request: %s" % url)
-        r = requests.get(url, auth=HTTPBasicAuth(intrinio_username, intrinio_password))
-
-        if r.status_code != 200:
-            raise Exception("ERROR: Request status was: %s\nRequest URL: %s" % (r.status_code, url))
-        data_json = json.loads(r.text)
-
-        with open(cached_file, 'w') as f:
-            f.write(json.dumps(data_json))
-            print("Successfully cached url: %s to %s" % (url, cached_file))
     return data_json
 
 
-def to_df(symbol, data_json):
+def to_df(symbol: str, data_json: dict) -> pd.DataFrame:
     df = pd.DataFrame(data_json['data'])
 
     df['date'] = pd.to_datetime(df['date'], format=DATE_FORMAT)
@@ -77,15 +112,19 @@ def to_df(symbol, data_json):
 
 
 def build_df_for_graham(symbol: str, start_date: datetime, end_date: datetime, frequency: str = '',
-                        type: str = ''):
+                        type_opt: str = '', **kwargs) -> pd.DataFrame:
     tags = ['totalrevenue', 'totalassets', 'totalliabilities', 'basiceps', 'paymentofdividends',
             'pricetoearnings', 'bookvaluepershare']
 
     ds = []
     for tag in tags:
         data_json = get_tag(symbol=symbol, tag=tag, start_date=start_date, end_date=end_date,
-                       frequency=frequency, type=type)
-        ds.append(to_df(symbol, data_json))
+                            frequency=frequency, type=type_opt, **kwargs)
+        df_aux = to_df(symbol, data_json)
+        if df_aux.empty:
+            logging.warning("Symbol %s had not fundamental data for tag %s. Skipping." % (symbol, tag))
+            return pd.DataFrame()
+        ds.append(df_aux)
 
     df = reduce(
         lambda left, right: pd.merge(left, right, on=['symbol', 'date'], how='outer'), ds)
@@ -93,13 +132,35 @@ def build_df_for_graham(symbol: str, start_date: datetime, end_date: datetime, f
 
     return df
 
+
+def get_all_fundamental_data(symbols):
+    start_date = datetime(year=1900, month=3, day=31)
+    end_date = datetime.now()
+
+    df_list = []
+    for symbol in symbols:
+        try:
+            df_aux = build_df_for_graham(symbol=symbol, start_date=start_date, end_date=end_date)
+            if df_aux.empty:
+                logging.info("Symbol %s returned no fundamental data." % symbol)
+            else:
+                logging.info("Successfully loaded fundamental data for symbol %s." % symbol)
+                df_list.append(df_aux)
+        except KeyError as e:
+            logging.error("Could not get fundamental data for %s, exception: %s" % (symbol, e))
+
+    df = pd.concat(df_list)
+
+    return df
+
+
 if __name__ == '__main__':
     url = 'https://api.intrinio.com/companies?ticker=AAPL'
 
 
     # r = requests.get(url, auth=HTTPBasicAuth(username, password))
 
-    # print("R: %s" % r)
+    # logging.info("R: %s" % r)
 
     # download fundamental from:
     # https: // intrinio.com / data / us - fundamentals - financials - metrics - ratios

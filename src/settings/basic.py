@@ -2,14 +2,18 @@ import os
 import logging
 import sys
 
-# Screening config
-CURRENT_YEAR = 2017
-DATE_FORMAT = "%Y-%m-%d"
-
 # Paths configuration
 SETTINGS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.join(SETTINGS_FOLDER, '../..')
+DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
 FUNDAMENTAL_DB_PATH = os.path.join(PROJECT_ROOT, "data/fundamental-data.db")
+LOG_PATH = os.path.join(PROJECT_ROOT, "log")
+
+# Screening config
+CURRENT_YEAR = 2017
+DATE_FORMAT = "%Y-%m-%d"
+iio_symbols = open(os.path.join(DATA_PATH, "symbols.lst")).read().splitlines()
+
 
 # Criteria settings
 GRAHAM_CRITERIA = "graham"
@@ -20,10 +24,24 @@ GRAHAM = {'year': 2017,
           'revenue_limit': int(1.5e3)}
 
 # Logger
+logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+rootLogger = logging.getLogger()
 
-logging.basicConfig(level=logging.DEBUG,
-                    format=' %(levelname)s: %(message)s',
-                    stream=sys.stdout)
+log_file = os.path.join(LOG_PATH, "log.out")
+fileHandler = logging.FileHandler(log_file)
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+rootLogger.addHandler(consoleHandler)
+rootLogger.setLevel(logging.INFO)
+
+
+#
+# logging.basicConfig(level=logging.DEBUG,
+#                     format=' %(levelname)s: %(message)s',
+#                     stream=sys.stdout)
 # File logger
 # output = os.path.join(PROJECT_ROOT, "../../log/log.out")
 # logging.basicConfig(level=logging.DEBUG,
