@@ -75,3 +75,5 @@ class SampleValues(unittest.TestCase):
     def test_all_fund_data(self):
 
         df = get_all_fundamental_data(iio_symbols[0:10])
+
+

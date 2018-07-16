@@ -6,16 +6,19 @@ import base64
 import pandas as pd
 
 from requests.auth import HTTPBasicAuth
-from settings.basic import (iio_symbols, logging, INTRINIO_CACHE_PATH, intrinio_username, intrinio_password,
+from settings.basic import (iio_symbols, logging, CACHE_PATH, intrinio_username,
+                            intrinio_password,
                             DATE_FORMAT)
 from string import Template
 from datetime import datetime
 from functools import reduce
 from typing import Tuple
+from urllib.parse import urlparse
 
 _symbols_url = Template("https://api.intrinio.com/companies?page_number=${page_number}")
-_fundamental_template = Template('https://api.intrinio.com/historical_data?identifier=${symbol}&item=${tag}'
-                                 '&start_date=${start_date}&end_date=${end_date}')
+_fundamental_template = Template(
+    'https://api.intrinio.com/historical_data?identifier=${symbol}&item=${tag}'
+    '&start_date=${start_date}&end_date=${end_date}&frequency=${frequency}')
 
 
 # _revenue_template = Template('https://api.intrinio.com/historical_data?identifier=${symbol}&item='
@@ -24,7 +27,13 @@ _fundamental_template = Template('https://api.intrinio.com/historical_data?ident
 
 
 def _call_and_cache(url: str, **kwargs) -> dict:
-    cached_file = os.path.join(INTRINIO_CACHE_PATH, base64.standard_b64encode(url.encode()).decode())
+    url_parsed = urlparse(url)
+
+    cached_file = os.path.join(CACHE_PATH, url_parsed.netloc + url_parsed.path + "/" +
+                               base64.standard_b64encode(url_parsed.query.encode()).decode())
+
+    if not os.path.exists(os.path.dirname(cached_file)):
+        os.makedirs(os.path.dirname(cached_file))
 
     try:
         no_cache = kwargs['no-cache']
@@ -37,7 +46,8 @@ def _call_and_cache(url: str, **kwargs) -> dict:
         with open(cached_file, 'r') as f:
             data_json = json.loads(f.read())
     else:
-        logging.info("Data was either not present in cache or it was disabled calling request: %s" % url)
+        logging.info(
+            "Data was either not present in cache or it was disabled calling request: %s" % url)
         r = requests.get(url, auth=HTTPBasicAuth(intrinio_username, intrinio_password))
 
         if r.status_code != 200:
@@ -73,11 +83,14 @@ def get_symbols(**kwargs) -> list:
     return symbols
 
 
-def get_tag(symbol: str, tag: str, start_date: datetime, end_date: datetime, frequency: str = '',
-            type_opt: str = '', **kwargs) -> dict:
+# TODO: check if type affects
+def get_tag(symbol: str, tag: str, start_date: datetime, end_date: datetime,
+            frequency: str, type_opt: str, **kwargs) -> dict:
     """
 
+    :param type_opt:
     :param symbol:
+    :param tag: tag of the data point to retrieve
     :param start_date: (datetime) the earliest date for which to return data: YYYY-MM-DD
     :param end_date: (datetime) the latest date for which to return data: YYYY-MM-DD
     :param frequency: the frequency of the historical prices & valuation data:
@@ -91,8 +104,9 @@ def get_tag(symbol: str, tag: str, start_date: datetime, end_date: datetime, fre
     start_date = start_date.strftime(DATE_FORMAT)
     end_date = end_date.strftime(DATE_FORMAT)
 
+    print("Frequency: %s" % frequency)
     url = _fundamental_template.substitute(symbol=symbol, tag=tag, start_date=start_date,
-                                           end_date=end_date)
+                                           end_date=end_date, frequency=frequency, type= type_opt)
 
     data_json = _call_and_cache(url, **kwargs)
 
@@ -111,18 +125,19 @@ def to_df(symbol: str, data_json: dict) -> pd.DataFrame:
     return df
 
 
-def build_df_for_graham(symbol: str, start_date: datetime, end_date: datetime, frequency: str = '',
-                        type_opt: str = '', **kwargs) -> pd.DataFrame:
+def build_df_for_graham(symbol: str, start_date: datetime, end_date: datetime, frequency: str =
+'quarterly', type_opt: str = '', **kwargs) -> pd.DataFrame:
     tags = ['totalrevenue', 'totalassets', 'totalliabilities', 'basiceps', 'paymentofdividends',
             'pricetoearnings', 'bookvaluepershare']
 
     ds = []
     for tag in tags:
         data_json = get_tag(symbol=symbol, tag=tag, start_date=start_date, end_date=end_date,
-                            frequency=frequency, type=type_opt, **kwargs)
+                            frequency=frequency, type_opt=type_opt, **kwargs)
         df_aux = to_df(symbol, data_json)
         if df_aux.empty:
-            logging.warning("Symbol %s had not fundamental data for tag %s. Skipping." % (symbol, tag))
+            logging.warning(
+                "Symbol %s had not fundamental data for tag %s. Skipping." % (symbol, tag))
             return pd.DataFrame()
         ds.append(df_aux)
 
@@ -133,7 +148,13 @@ def build_df_for_graham(symbol: str, start_date: datetime, end_date: datetime, f
     return df
 
 
-def get_all_fundamental_data(symbols):
+def merge_quarter(quarter_lst):
+    df = pd.concat(quarter_lst, axis=0).drop_duplicates().T
+
+    return df
+
+
+def get_all_fundamental_data_deprecated(symbols):
     start_date = datetime(year=1900, month=3, day=31)
     end_date = datetime.now()
 
@@ -151,6 +172,48 @@ def get_all_fundamental_data(symbols):
 
     df = pd.concat(df_list)
 
+    return df
+
+
+def get_all_fundamental_data(symbols):
+    # start_date = datetime(year=1900, month=3, day=31)
+    # end_date = datetime.now()
+    years = [2014, 2015, 2016, 2017]
+    quarters = ["Q1", "Q2", "Q3", "Q4"]
+    documents = ["income_statement", "balance_sheet", "cash_flow_statement"]
+    # documents = ["income_statement", "balance_sheet", "cash_flow_statement", "calculations"]
+    tags = ['totalrevenue', 'totalassets', 'totalliabilities', 'basiceps', 'paymentofdividends',
+            'pricetoearnings', 'bookvaluepershare']
+
+    base_url = Template(
+        'https://api.intrinio.com/financials/standardized?identifier=${symbol}&statement=${doc}&fiscal_year=${year}&fiscal_period=${period}')
+    df_list = []
+
+    for symbol in symbols:
+        year_aux = {}
+        for year in years:
+            quarter_aux = {}
+            for quarter in quarters:
+                docs_aux = [pd.DataFrame([['symbol', symbol], ['year', year], ['quarter',
+                                                                               quarter]],
+                                         columns=['tag', 'value']).set_index('tag')]
+                for doc in documents:
+                    curr_url = base_url.substitute(symbol=symbol, doc=doc, year=year,
+                                                   period=quarter)
+                    data_json = _call_and_cache(curr_url)
+                    df_aux = pd.DataFrame(data_json['data']).drop_duplicates()
+                    df_aux['tag'] = ''.join([x[0] for x in doc.split('_')]) + '_' + df_aux[
+                        'tag'].astype(str)
+                    docs_aux.append(df_aux.set_index('tag'))
+
+                quarter_aux[quarter] = docs_aux
+                quarter_df = pd.concat(docs_aux, axis=0).drop_duplicates().T
+                df_list.append(quarter_df)
+            year_aux[year] = quarter_aux
+
+    df = pd.concat(df_list, axis=0).set_index(['symbol', 'year', 'quarter'])
+
+    # pd.isnull(df).sum() > 0 check if a columns has null values
     return df
 
 
