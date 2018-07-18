@@ -168,32 +168,34 @@ def _graham_number(df, year):
     return symbols
 
 
-def screen_stocks(manager):
+def screen_stocks(manager, tickers: list):
     """
     Filters out the stocks which do not meet all conditions
     revenue(x) > 1.5 billion
     :param manager: data manager to get the data
     :return: list of the stocks that fulfill Graham's criteria
     """
-    df = manager.get_fundamental_df()
-    symbols = manager.get_symbols(df)
+
+    symbols = manager.build_symbols(tickers=tickers)
 
     logging.debug("Symbols to be screened:")
-    [logging.debug(s) for s in symbols]
+    [logging.debug(s.id) for s in symbols]
 
-    symbols = [None] * 6
-    symbols[0] = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'],
-                                              limit=cfg.GRAHAM['revenue_limit'])
-    symbols[1] = _strong_financial_conditions(df=df, year=cfg.GRAHAM['year'])
-    symbols[2] = _earnings_stability(df=df, year=cfg.GRAHAM['year'])
-    symbols[3] = _dividends_record(df=df, year=cfg.GRAHAM['year'])
-    symbols[4] = _earnings_growth(df=df, year=cfg.GRAHAM['year'])
-    symbols[5] = _graham_number(df=df, year=cfg.GRAHAM['year'])
-
-    for i, s in enumerate(symbols):
-        logging.info("Symbols passing condition %s: \n\t%s\n" % (i + 1, s))
-
-    # Flatten list to check which symbols pass all conditions
-    screened_symbols = set(symbols[0]).intersection(*symbols)
+    screened_symbols = []
+    #
+    # symbols = [None] * 6
+    # symbols[0] = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'],
+    #                                           limit=cfg.GRAHAM['revenue_limit'])
+    # symbols[1] = _strong_financial_conditions(df=df, year=cfg.GRAHAM['year'])
+    # symbols[2] = _earnings_stability(df=df, year=cfg.GRAHAM['year'])
+    # symbols[3] = _dividends_record(df=df, year=cfg.GRAHAM['year'])
+    # symbols[4] = _earnings_growth(df=df, year=cfg.GRAHAM['year'])
+    # symbols[5] = _graham_number(df=df, year=cfg.GRAHAM['year'])
+    #
+    # for i, s in enumerate(symbols):
+    #     logging.info("Symbols passing condition %s: \n\t%s\n" % (i + 1, s))
+    #
+    # # Flatten list to check which symbols pass all conditions
+    # screened_symbols = set(symbols[0]).intersection(*symbols)
 
     return screened_symbols
