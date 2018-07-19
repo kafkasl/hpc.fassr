@@ -10,7 +10,6 @@ FUNDAMENTAL_DB_PATH = os.path.join(PROJECT_ROOT, "data/fundamental-data.db")
 LOG_PATH = os.path.join(PROJECT_ROOT, "log")
 
 # Screening config
-CURRENT_YEAR = 2017
 DATE_FORMAT = "%Y-%m-%d"
 iio_symbols = open(os.path.join(DATA_PATH, "symbols.lst")).read().splitlines()
 
@@ -21,7 +20,7 @@ SUPPORTED_CRITERIA = [GRAHAM_CRITERIA]
 
 # GRAHAM criteria settings
 GRAHAM = {'year': 2017,
-          'revenue_limit': int(1.5e3)}
+          'revenue_limit': int(1.5e9)}
 
 # Logger
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
@@ -35,7 +34,7 @@ rootLogger.addHandler(fileHandler)
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
-rootLogger.setLevel(logging.INFO)
+rootLogger.setLevel(logging.DEBUG)
 
 
 #
