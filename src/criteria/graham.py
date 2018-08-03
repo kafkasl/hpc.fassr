@@ -20,7 +20,7 @@ def _filter(df, symbols):
     return df
 
 
-def graham_screening(symbols: list, d: datetime, limit: float):
+def graham_screening(symbols: list, datetime_obj: datetime, limit: float):
     """
     1st condition of Graham's criteria: Adequate size of enterprise
     * revenue(x) > 1.5 billion
@@ -32,13 +32,27 @@ def graham_screening(symbols: list, d: datetime, limit: float):
     # revenues = manager.get_revenue_per_year(symbol, (year,))
 
 
+    # Graham is a yearly indicator so we check previous years data
+
+    year = datetime_obj.year - 1
     for s in symbols:
+
+        stock_price = 0
+        try:
+            stock_price = s.get_stock_price(datetime_obj)
+        except AssertionError:
+            logging.warning("Symbol %s has no stock price in %s" % (s, datetime_obj))
+            continue
         """
         1st condition of Graham's criteria: Adequate size of enterprise
         * revenue(x) > 1.5 billion
-        """
-        s.screening['graham']['adequate size of enterprise'] = \
-            (s.get_y('totalrevenue', d) / limit) - 1
+         """
+        s.screening['graham']['adequate enterprise size'] = 0
+        try:
+            if s.get_y('totalrevenue', year) > limit:
+                s.screening['graham']['adequate enterprise size'] = 1
+        except KeyError:
+            logging.warning("Symbol %s has no totalrevenue value for year %s" % (s, year))
 
         """
         2nd condition of Graham's criteria: Strong financial condition
@@ -46,98 +60,98 @@ def graham_screening(symbols: list, d: datetime, limit: float):
         * working_capital(x) > 0
         """
         s.screening['graham']['strong financial conditions'] = 0
-        if s.get_y('totalassets', d) >\
-                        2 * s.get_y("totalliabilities", d) and \
-                        s.get_y('nwc', d) > 0:
-            s.screening['graham']['strong financial conditions'] = 1
+        try:
+            if s.get_y('totalassets', year) > 2 * s.get_y("totalliabilities", year) and \
+                            s.get_y('nwc', year) > 0:
+                s.screening['graham']['strong financial conditions'] = 1
+        except KeyError:
+           logging.warning("Symbol %s has no totalliabilities/totalassets value for year %s" % (s,
+                                                                                           year))
+
 
         """
         3rd condition of Graham's criteria: Earning stability
         * earnings(x, y) > 0, for all y in [currentYear - 10, currentYear]
         """
-        years_stable = [s.get_y('eps', d-delta(years=d)) > 0 for d in range(0, 11)]\
-            .count(True)
-        s.screening['graham']['earnings stability'] = (years_stable / 10) - 1
+        years_stable = 0
+        for d in range(0, 11):
+            try:
+                if s.get_y('basiceps', year - d) > 0:
+                    years_stable += 1
+            except KeyError:
+                logging.warning(
+                    "Year %s earnings (basiceps) not available for Graham screening" % (year - d))
+        print("YEARS STABLE = %s" % years_stable)
+        s.screening['graham']['earnings stability'] = (years_stable / 10)
 
         """
         4th condition of Graham's criteria: Dividend record
         * dividends_payment(x, y) > 0, forall y in [currentYear - 20, currentYear]
         """
-        dividends_paid = [s.get_y('dividendyield', d - delta(years=d)) > 0 for d in range(0, 11)]\
-            .count(True)
-        s.screening['graham']['dividends record'] = (dividends_paid / 20) - 1
+        dividends_record = 0
+        for d in range(0, 11):
+            try:
+                if s.get_y('dividendyield', year - d) > 0:
+                    dividends_record += 1
+            except KeyError:
+                logging.warning(
+                    "Year %s dividend yield not available for Graham screening" % (year - d))
+
+        s.screening['graham']['dividends record'] = (dividends_record / 20)
 
         """
         5th condition of Graham's criteria: Earnings growth
         * EPS(x, y) > 1.03 EPS(x, y-1)
         """
-        current_eps = s.get_y('basiceps', d)
-        last_year_eps = s.get_y('basiceps', d - delta(years=1))
-        s.screening['graham']['earnings growth'] = (current_eps/ (1.03 * last_year_eps)) - 1
+
+        s.screening['graham']['earnings growth'] = 0
+        try:
+            current_eps = s.get_y('basiceps', year)
+            last_year_eps = s.get_y('basiceps', year - 1)
+            s.screening['graham']['earnings growth'] = (current_eps / (1.03 * last_year_eps)) - 1
+        except KeyError:
+            logging.warning("Symbol %s has no basiceps value for year %s or %s" % (s, year,
+                                                                                   year-1))
+
 
         """
         6th condition of Graham's criteria: Moderate P/E ratio.
         * P/E between 10 and 15 (or for a precise quantity apply Eq. (6.10)).
         """
         s.screening['graham']['moderate p/e ratio'] = 0
-        if 10 < s.get_y('pricetoearnings', d) < 15:
-            s.screening['graham']['moderate p/e ratio'] = 1
+        try:
+            if 10 < s.get_y('pricetoearnings', year) < 15:
+                s.screening['graham']['moderate p/e ratio'] = 1
+        except KeyError:
+            logging.warning("Symbol %s has no pricetoearnings value for year %s" % (s, year))
 
         """
         7th condition of Graham's criteria: Moderate price-to-book ratio.
         * The price-to-book ratio should be no more than 1.5.
         """
         s.screening['graham']['moderate price-to-book ratio'] = 0
-        if s.get_y('pricetobook', d) < 1.5:
-            s.screening['graham']['moderate price-to-book ratio'] = 1
+        try:
+            if s.get_y('pricetobook', year) < 1.5:
+                s.screening['graham']['moderate price-to-book ratio'] = 1
+        except KeyError:
+            logging.warning("Symbol %s has no pricetobook value for year %s" % (s, year))
 
         """
         8th condition of Graham's criteria: Combination of (6) and (7)
         * Pt = sqrt(22.5 * EPS * BVPS)
         * market_price(x) <= Pt
         """
-        pt = sqrt(22.5 * s.get_y('basiceps', d)* s.get_y('bookvaluepershare', d))
-        s.screening['graham']['graham number'] = (pt / s.get_stock_price(d)) - 1
-
-    return symbols
-
-
-
-def _graham_number(df, year):
-    """
-    8th condition of Graham's criteria: Combination of (6) and (7)
-    * Pt = sqrt(22.5 * EPS * BVPS)
-    * market_price(x) <= Pt
-    :param df: pandas dataframe with stocks
-    :param year: current year for screening
-    :return: dataframe without the symbols that do not meet the condition
-    """
-
-    eps = df.loc[(df['category'] == 'Earnings Per Share USD') &
-                 (df['d'].dt.year == year), ['symbol', 'value']] \
-        .rename(columns={'value': 'eps'})
-
-    bvps = df.loc[(df['category'] == 'Book Value Per Share * USD') &
-                  (df['d'].dt.year == year), ['symbol', 'value']] \
-        .rename(columns={'value': 'bvps'})
-
-    per = df.loc[(df['category'] == 'Price to Earnings') &
-                 (df['d'].dt.year == year), ['symbol', 'value']] \
-        .rename(columns={'value': 'per'})
-
-    shares_number = df.loc[(df['category'] == 'Shares Mil') &
-                           (df['d'].dt.year == year), ['symbol', 'value']] \
-        .rename(columns={'value': 'shares_number'})
-
-    dfs = [eps, bvps, per, shares_number]
-    aux = reduce(lambda left, right: pd.merge(left, right, on='symbol'), dfs)
-
-    aux['pt'] = aux.apply(lambda x: sqrt(22.5 * x.eps * x.bvps), axis=1)
-    # TODO check if this is a valid way of computing the market price (number of shares is in millions)
-    # TODO this is wrong
-    aux['market_price'] = aux.apply(lambda x: x.per * x.eps, axis=1)
-
-    symbols = list(aux.loc[aux['market_price'] < aux['pt'], 'symbol'].drop_duplicates())
+        s.screening['graham']['graham number'] =0
+        try:
+            pt = sqrt(
+                22.5 * s.get_y('basiceps', year) * s.get_y('bookvaluepershare', year))
+            s.screening['graham']['graham number'] = pt / stock_price
+        except KeyError as e:
+            logging.warning("Symbol %s has missing value %s" % (s, e))
+        except ValueError:
+            logging.warning("Negative Graham number basiceps:%s, bookvaluepershare:%s for symbol "
+                            "%s" % (s.get_y('basiceps', year), s.get_y('bookvaluepershare',
+                                                                        year), s))
 
     return symbols
 
@@ -154,33 +168,32 @@ def screen_stocks(manager, tickers: list):
 
     logging.debug("Symbols to be screened: %s" % " ".join([s.id for s in symbols]))
 
-    today = datetime.today() - delta(years=1)
+    today = datetime(2018, 8, 1)
     mean, std = {}, {}
 
+    # Compute mean and std of last year indicators to compute z-scores
     for indicator in Symbol.indicators:
-        lst_aux = [s.get_y(indicator, today) for s in symbols]
+        lst_aux = []
+        for s in symbols:
+            try:
+                lst_aux.append(s.get_y(indicator, today.year - 1))
+            except KeyError:
+                logging.warning("Value for symbol %s, year %s, and indicator %s not found." % (
+                    s, today.year-1, indicator))
+
+
         print("LST aux: %s" % lst_aux)
         mean[indicator] = np.mean(lst_aux)
         std[indicator] = np.std(lst_aux)
 
-    screened_symbols = graham_screening(symbols=symbols, d=today, limit=1.5e9)
+    screened_symbols = graham_screening(symbols=symbols, datetime_obj=today, limit=1.5e9)
+    # screened_symbols = z_scores(symbols=symbols, datetime_obj=today, limit=1.5e9)
 
+    from pprint import pformat
     for s in screened_symbols:
-        print("\n%s:\n%s" % (s.id, s.screening))
-    #
-    # symbols = [None] * 6
-    # symbols[0] = _adequate_size_of_enterprise(df=df, year=cfg.GRAHAM['year'],
-    #                                           limit=cfg.GRAHAM['revenue_limit'])
-    # symbols[1] = _strong_financial_conditions(df=df, year=cfg.GRAHAM['year'])
-    # symbols[2] = _earnings_stability(df=df, year=cfg.GRAHAM['year'])
-    # symbols[3] = _dividends_record(df=df, year=cfg.GRAHAM['year'])
-    # symbols[4] = _earnings_growth(df=df, year=cfg.GRAHAM['year'])
-    # symbols[5] = _graham_number(df=df, year=cfg.GRAHAM['year'])
-    #
-    # for i, s in enumerate(symbols):
-    #     logging.info("Symbols passing condition %s: \n\t%s\n" % (i + 1, s))
-    #
-    # # Flatten list to check which symbols pass all conditions
-    # screened_symbols = set(symbols[0]).intersection(*symbols)
+        if s.id == 'AAPL':
+            logging.debug("\n%s:\n" % (s.id))
+            logging.debug(pformat(s.screening))
+            logging.debug(pformat(s._data))
 
     return screened_symbols

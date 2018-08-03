@@ -1,5 +1,6 @@
 from requests.auth import HTTPBasicAuth
-from settings.basic import (logging, CACHE_PATH, intrinio_username, intrinio_password)
+from settings.basic import (logging, CACHE_ENABLED, CACHE_PATH, intrinio_username,
+                            intrinio_password)
 
 from urllib.parse import urlparse
 
@@ -30,8 +31,9 @@ def call_and_cache(url: str, **kwargs) -> dict:
         no_cache = False
 
     data_json = {}
-    if os.path.exists(cached_file) and not no_cache:
-        logging.debug("Data was present in cache and cache is enabled, loading: %s" % cached_file)
+    if CACHE_ENABLED and os.path.exists(cached_file) and not no_cache:
+        logging.debug("Data was present in cache and cache is enabled, loading: %s for %s" %
+                      (cached_file, url))
         with open(cached_file, 'r') as f:
             data_json = json.loads(f.read())
     else:

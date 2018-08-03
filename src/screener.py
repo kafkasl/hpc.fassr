@@ -27,10 +27,28 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    tickers = ['GOOGL', 'AAPL', 'MSFT']
+    # tickers = ['GOOGL', 'AAPL', 'MSFT']
+
+    tickers = open('../data/dow30_symbols.lst').read().split()
+    tickers = open('../data/sp500_symbols.lst').read().split()
 
     manager = get_manager('intrinio')
     screened_stocks = screen(manager, tickers=tickers, criteria=args.criteria)
 
-    print("Stocks that passed the screening %s" % len(screened_stocks))
-    [print(s.id) for s in screened_stocks]
+    # print("Stocks that passed the screening %s" % len(screened_stocks))
+    # [print(s.id) for s in screened_stocks]
+
+    indicators = screened_stocks[0].screening['graham'].keys()
+    print("Indicators:\n%s" % indicators)
+    for s in screened_stocks:
+        print("%s" % s.id, end='')
+        for i in indicators:
+            v = s.screening['graham'][i]
+            if len(str(v)) > 4:
+                print(" %.2f" % v, end='')
+            else:
+                print(" %s" % v, end='')
+        print()
+
+
+

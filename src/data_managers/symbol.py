@@ -44,11 +44,17 @@ class Symbol(object):
         if indicator not in self._data:
             data_json = self._get_yearly_tag_values(indicator)
 
-            self._data[indicator] = {int(r['date'][0:4]): r['value'] for r in data_json['data']}
+            self._data[indicator] = {}
+            for r in data_json['data']:
+                try:
+                    self._data[indicator][int(r['date'][0:4])] = float(r['value'])
+                except ValueError:
+                    logging.error("[%s] Indicator %s value is not a number [%s]" %
+                                  (self.id, indicator, data_json['data']))
 
         return self._data[indicator]
 
-    def get_y(self, indicator: str, date: datetime):
+    def get_y(self, indicator: str, year: int):
         """
         :return: dictionary mapping year -> total revenue
         """
@@ -56,15 +62,17 @@ class Symbol(object):
         values = self.get_indicator(indicator=indicator)
 
         try:
-            return values[date.year]
-        except KeyError:
-            raise Exception("KeyError: Accessing indicator %s of symbol %s with year %s, but dict "
-                            "is: %s" % (indicator, self.id, date.year, values))
+            return values[year]
+        except KeyError as e:
+            raise KeyError("Accessing indicator %s of symbol %s with year %s, but dict "
+                           "is: %s %s" % (indicator, self.id, year, values, e))
 
     def get_stock_price(self, date: datetime):
 
         date_str = date.strftime(DATE_FORMAT)
 
+        if 'open_price' not in self._data:
+            self._data['open_price'] = {}
         if date_str not in self._data['open_price']:
             url = stock_price_url.substitute(symbol=self.id, start_date=date_str,
                                              end_date=date_str)
