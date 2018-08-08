@@ -16,7 +16,7 @@ base_url = Template('https://api.intrinio.com/financials/standardized?identifier
 
 
 def build_symbols(tickers: list) -> list:
-    return [Symbol(t) for t in tickers]
+    return {t: Symbol(t) for t in tickers}
 
 
 

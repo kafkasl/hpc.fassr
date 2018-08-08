@@ -1,7 +1,6 @@
 from utils.cache import call_and_cache
 from string import Template
 from datetime import datetime
-from collections import defaultdict
 
 from settings.basic import *
 
@@ -25,9 +24,9 @@ class Symbol(object):
 
     def __init__(self, symbol: str):
         self.id = symbol
+        self.name = ""
         self._data = {}
 
-        self.screening = defaultdict(dict)
 
     def _get_yearly_tag_values(self, tag):
         start_date = datetime(year=2007, month=1, day=1).strftime(DATE_FORMAT)
@@ -84,80 +83,3 @@ class Symbol(object):
             self._data['open_price'][data_json['data'][0]['date']] = data_json['data'][0]['open']
 
         return self._data['open_price'][date_str]
-
-
-        #
-        # @property
-        # def total_liabilities(self):
-        #     """
-        #     :return: dictionary mapping year -> total liabilities
-        #     """
-        #     if 'total_liabilities:
-        #         tag = 'totalliabilities'
-        #
-        #         data_json = self._get_yearly_tag(tag)
-        #
-        #         self._total_liabilities = {int(row['date'][0:4]): row['value'] for row in data_json[
-        #             'data']}
-        #
-        #     return self._total_liabilities
-        #
-        # @property
-        # def total_assets(self):
-        #     """
-        #     :return: dictionary mapping year -> total assets
-        #     """
-        #     if 'total_assets:
-        #         tag = 'totalassets'
-        #
-        #         data_json = self._get_yearly_tag(tag)
-        #
-        #         self._total_assets = {int(row['date'][0:4]): row['value'] for row in data_json[
-        #             'data']}
-        #
-        #     return self._total_assets
-        #
-        # @property
-        # def basiceps(self):
-        #     """
-        #     :return: dictionary mapping year -> basic eps
-        #     """
-        #     if 'total_eps:
-        #         tag = 'basiceps'
-        #
-        #         data_json = self._get_yearly_tag(tag)
-        #
-        #         self._total_eps = {int(row['date'][0:4]): row['value'] for row in data_json[
-        #             'data']}
-        #
-        #     return self._total_eps
-        #
-        # @property
-        # def dividend_yield(self):
-        #     """
-        #     :return: dictionary mapping year -> dividend yield
-        #     """
-        #     if 'dividend_yield:
-        #         tag = 'dividendyield'
-        #
-        #         data_json = self._get_yearly_tag(tag)
-        #
-        #         self._dividend_yield = {int(row['date'][0:4]): row['value'] for row in data_json[
-        #             'data']}
-        #
-        #     return self._dividend_yield
-        #
-        # @property
-        # def book_value_per_share(self):
-        #     """
-        #     :return: dictionary mapping year -> book value per share
-        #     """
-        #     if 'book_value_per_share:
-        #         tag = 'bookvaluepershare'
-        #
-        #         data_json = self._get_yearly_tag(tag)
-        #
-        #         self._book_value_per_share = {int(row['date'][0:4]): row['value'] for row in data_json[
-        #             'data']}
-        #
-        #     return self._book_value_per_share

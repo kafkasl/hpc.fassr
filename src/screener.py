@@ -29,8 +29,8 @@ if __name__ == "__main__":
 
     # tickers = ['GOOGL', 'AAPL', 'MSFT']
 
+    # tickers = open('../data/sp500_symbols.lst').read().split()
     tickers = open('../data/dow30_symbols.lst').read().split()
-    tickers = open('../data/sp500_symbols.lst').read().split()
 
     manager = get_manager('intrinio')
     screened_stocks = screen(manager, tickers=tickers, criteria=args.criteria)
