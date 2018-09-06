@@ -27,7 +27,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # tickers = ['GOOGL', 'AAPL', 'MSFT']
 
     # tickers = open('../data/sp500_symbols.lst').read().split()
     tickers = open('../data/dow30_symbols.lst').read().split()
