@@ -180,3 +180,4 @@ data/dow30_2010-3.csv filter=lfs diff=lfs merge=lfs -text
 data/dow30_2017-1.csv filter=lfs diff=lfs merge=lfs -text
 data/sp500_2014-Q4.csv filter=lfs diff=lfs merge=lfs -text
 data/sp500_2015-4.csv filter=lfs diff=lfs merge=lfs -text
+*.pdf filter=lfs diff=lfs merge=lfs -text
