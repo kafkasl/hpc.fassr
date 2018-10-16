@@ -1,85 +1,93 @@
 from data_managers.extraction import DataCollector
 
-from data_managers.transformation import IndicatorsBuilder
+from data_managers.transformation import IndicatorsBuilder, Indicators
+from data_managers.imputation import DataPreprocessor
 from utils import to_df
 
 from sklearn import tree
+import numpy as np
 # from models.linear_regression import LinearRegression as model
 
+import os
 
 
 
-
-symbols_list_name = 'debug'
+symbols_list_name = 'dow30'
 start_year = 2006
 end_year = 2019
 threshold = 0.015
+# experts_criteria = ['graham', 'buffet']
+experts_criteria = ['graham', 'all']
 
 dc = DataCollector(symbols_list_name=symbols_list_name,
                    start_year=start_year,
                    end_year=end_year)
-data = dc.collect()
-filename = dc.to_csv()
 
-df = to_df(filename)
+filename = dc.csv_filename()
 
-# BUILD GRAHAM DECISION TREE
-# ===============================================================================
-# df = IndicatorsBuilder(df).add_positions(threshold=threshold).to_graham().get_df()
-graham_indicators = IndicatorsBuilder(df).add_positions(threshold=threshold).to_graham().build()
-# df = graham_indicators.as_dataframe()
+if not os.path.isfile(filename):
+    data = dc.collect()
+    filename = dc.to_csv()
 
-# TODO dirty hack, should handle missing values outside here
-graham_indicators._df['paymentofdividends'].fillna(0, inplace=True)
+# dfs = {'graham' : df_aux}
 
-X, y = graham_indicators.X, graham_indicators.y
-
-# X, y = X_df.values, y_df.values
-
-X_train = X[:-3]
-y_train = y[:-3]
-X_test = X[-3:]
-y_test = y[-3:]
-
-clf = tree.DecisionTreeClassifier()
-
-clf.fit(X, y)
-
-import graphviz
-dot_data = tree.export_graphviz(clf, out_file=None,
-                         feature_names=graham_indicators.feature_names,
-                         class_names=clf.classes_,
-                         filled=True, rounded=True,
-                         special_characters=True)
-
-graph = graphviz.Source(dot_data)
-graph.render('%s_graham' % symbols_list_name)
+# df['graham'] = DataPreprocessor(dataframe=df_aux).fill_w_value(0).get_df()
+# dfs['graham'] = DataPreprocessor(dataframe=df_aux).fill_w_value(0).replace_w_value('nm', float('nan')).drop_any_na().get_df()
+# dfs['buffet'] = DataPreprocessor(dataframe=df_aux).fill_w_value(0).replace_w_value('nm', -666).get_df()
 
 
+indicators = {}
+X, y = {}, {}
+clfs = {}
+graph = {}
 
-# BUILD BUFFET DECISION TREE
-# ===============================================================================
-# df = IndicatorsBuilder(df).add_positions(threshold=threshold).to_graham().get_df()
-buffet_indicators = IndicatorsBuilder(df).add_positions(threshold=threshold).to_buffet().build()
-# df = graham_indicators.as_dataframe()
+axis = {'graham': 0,
+        'all': 1}
 
-# TODO dirty hack, should handle missing values outside here
-# graham_indicators._df['paymentofdividends'].fillna(0, inplace=True)
+for expert in experts_criteria:
+    df = to_df(filename)
 
-X, y = buffet_indicators.X, buffet_indicators.y
+    # BUILD GRAHAM DECISION TREE
+    # ===============================================================================
+    builder = IndicatorsBuilder(df).add_positions(threshold=threshold).to_criteria(expert)
+
+    df, target = builder.to_df(), builder.target
+
+    df = DataPreprocessor(dataframe=df).replace_w_value('nm', np.NaN).drop_any_na(axis[expert]).get_df()
 
 
-clf = tree.DecisionTreeClassifier()
+    indicators[expert] = Indicators(df, target)
 
-clf.fit(X, y)
+    X, y = indicators[expert].X, indicators[expert].y
 
-import graphviz
-dot_data = tree.export_graphviz(clf, out_file=None,
-                         feature_names=buffet_indicators.feature_names,
-                         class_names=clf.classes_,
-                         filled=True, rounded=True,
-                         special_characters=True)
+    # X, y = X_df.values, y_df.values
 
-graph = graphviz.Source(dot_data)
-graph.render('%s_buffet' % symbols_list_name)
+    X_train = X[:-3]
+    y_train = y[:-3]
+    X_test = X[-3:]
+    y_test = y[-3:]
 
+    clf = tree.DecisionTreeClassifier(max_depth=3)
+
+    clf.fit(X, y)
+
+    import graphviz
+    dot_data = tree.export_graphviz(clf, out_file=None,
+                             feature_names=indicators[expert].feature_names,
+                             class_names=clf.classes_,
+                             filled=True, rounded=True,
+                             special_characters=True)
+
+    graph[expert] = graphviz.Source(dot_data)
+    graph[expert].render('%s_%s' % (symbols_list_name, expert), view=True, cleanup=True)
+
+    clfs[expert] = clf
+    #
+    # os.remove()
+
+    print("\n\n[%s] Features importance:" % expert)
+    f_list =["%s: %.3f" % (f, i) for f, i in list(zip(indicators[expert].feature_names, clf.feature_importances_))]
+
+    f_list = sorted(f_list, key=lambda t: t[0])
+    # print('\n'.join(["%s: %.3f" % (f, i) for f, i in list(zip(indicators[expert].feature_names, clf.feature_importances_))]))
+    print('\n'.join(f_list))

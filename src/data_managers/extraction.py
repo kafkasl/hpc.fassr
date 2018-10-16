@@ -43,7 +43,7 @@ class DataCollector(object):
                               't: curr_period_mean',
                               't: current_price',
                               't: daily_increase',
-                              't: half-month_increase',
+                              't: half_month_increase',
                               't: monthly_increase',
                               't: next_half_mean',
                               't: next_month_mean',
@@ -93,6 +93,9 @@ class DataCollector(object):
             "identifier=${symbol}&"
             "statement=income_statement&"
             "type=TTM")
+
+    def csv_filename(self):
+        return '../data/csv/%s_monolithic.csv' % self.symbols_list_name
 
     @staticmethod
     def _get_start_date(end_date_str: str, delta: relativedelta) -> str:
@@ -320,7 +323,7 @@ class DataCollector(object):
                                     'reporting period': rep_period,
                                     't: period_increase': period_incr,
                                     't: monthly_increase': monthly_incr,
-                                    't: half-month_increase': half_incr,
+                                    't: half_month_increase': half_incr,
                                     't: daily_increase': daily_incr,
                                     't: current_price': curr_price,
                                     't: next_price': next_reporting_price,
@@ -352,7 +355,7 @@ class DataCollector(object):
         return attr2id
 
     def _write_to_single_csv(self, series_financials_dict: dict):
-        file_name = '../data/csv/%s_monolithic.csv' % self.symbols_list_name
+        file_name = self.csv_filename()
         attr2id = self._get_attr2id(
             series_financials_dict=series_financials_dict)
         symbols = self._load_symbol_list(self.symbols_list_name)

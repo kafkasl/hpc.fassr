@@ -12,7 +12,7 @@ t: curr_month_mean
 t: curr_period_mean
 t: current_price
 t: daily_increase
-t: half-month_increase
+t: half_month_increase
 t: monthly_increase
 t: next_half_mean
 t: next_month_mean

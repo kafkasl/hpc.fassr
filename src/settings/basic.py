@@ -11,15 +11,15 @@ LOG_PATH = os.path.join(PROJECT_ROOT, "log")
 
 # Screening config
 DATE_FORMAT = "%Y-%m-%d"
-iio_symbols = open(os.path.join(DATA_PATH, "symbols.lst")).read().splitlines()
+# iio_symbols = open(os.path.join(DATA_PATH, "symbols.lst")).read().splitlines()
 
 # Criteria settings
-GRAHAM_CRITERIA = "graham"
-SUPPORTED_CRITERIA = [GRAHAM_CRITERIA]
-
+# GRAHAM_CRITERIA = "graham"
+# SUPPORTED_CRITERIA = [GRAHAM_CRITERIA]
+#
 # GRAHAM criteria settings
-GRAHAM = {'year': 2017,
-          'revenue_limit': int(1.5e9)}
+# GRAHAM = {'year': 2017,
+#           'revenue_limit': int(1.5e9)}
 
 # Logger
 logFormatter = logging.Formatter(
