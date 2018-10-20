@@ -5,11 +5,12 @@ from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
 from string import Template
-
+import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
 
 from settings.basic import logging, DATE_FORMAT
+from tags import Tags
 
 from utils import call_and_cache, save_obj, load_obj
 
@@ -32,29 +33,13 @@ class DataCollector(object):
 
         # Fixed parameters
         self.version = 0.1
-        self.basic_symbols = ['symbol',
-                              'year',
-                              'quarter',
-                              'reporting period',
-                              'current_date',
-                              'next_date',
-                              't: curr_half_mean',
-                              't: curr_month_mean',
-                              't: curr_period_mean',
-                              't: current_price',
-                              't: daily_increase',
-                              't: half_month_increase',
-                              't: monthly_increase',
-                              't: next_half_mean',
-                              't: next_month_mean',
-                              't: next_period_mean',
-                              't: next_price',
-                              't: period_increase']
 
-        attrs = load_obj('../data/intrinio_tags')
-        self.extended_symbols = list(set().union(*attrs.values()))
 
-        self.ordered_symbols = self.basic_symbols + self.extended_symbols
+        # attrs = load_obj('../data/intrinio_tags_%s' % symbols_list_name)
+        # self.extended_symbols = list(set().union(*attrs.values()))
+
+        # self.ordered_symbols = self.basic_symbols + self.extended_symbols
+        self.ordered_symbols = Tags.all()
 
         # Common module constants
         self.quarters_names = ["Q1TTM", "Q2TTM", "Q3TTM", "FY"]
@@ -318,21 +303,21 @@ class DataCollector(object):
                     half_incr = (next_half_mean / curr_half_mean) - 1
                     daily_incr = (next_reporting_price / curr_price) - 1
 
-                    extra_fields = {'next_date': next_date,
-                                    'current_date': curr_date,
-                                    'reporting period': rep_period,
-                                    't: period_increase': period_incr,
-                                    't: monthly_increase': monthly_incr,
-                                    't: half_month_increase': half_incr,
-                                    't: daily_increase': daily_incr,
-                                    't: current_price': curr_price,
-                                    't: next_price': next_reporting_price,
-                                    't: curr_half_mean': curr_half_mean,
-                                    't: next_half_mean': next_half_mean,
-                                    't: curr_month_mean': curr_month_mean,
-                                    't: next_month_mean': next_month_mean,
-                                    't: curr_period_mean': curr_period_mean,
-                                    't: next_period_mean': next_period_mean,
+                    extra_fields = {Tags.next_date: next_date,
+                                    Tags.current_date: curr_date,
+                                    Tags.reporting_period: rep_period,
+                                    Tags.t_daily_increase: daily_incr,
+                                    Tags.shareprice: curr_price,
+                                    Tags.t_next_price: next_reporting_price,
+                                    Tags.t_period_increase: period_incr,
+                                    Tags.t_monthly_increase: monthly_incr,
+                                    Tags.t_half_month_increase: half_incr,
+                                    Tags.t_curr_half_mean: curr_half_mean,
+                                    Tags.t_next_half_mean: next_half_mean,
+                                    Tags.t_curr_month_mean: curr_month_mean,
+                                    Tags.t_next_month_mean: next_month_mean,
+                                    Tags.t_curr_period_mean: curr_period_mean,
+                                    Tags.t_next_period_mean: next_period_mean,
                                     }
 
                     series_financials_dict[symbol][period_idx].update(
@@ -415,10 +400,11 @@ if __name__ == '__main__':
                        start_year=start_year,
                        end_year=end_year)
 
-    attrs = dc._collect_attr_names()
-    # data = dc.collect()
-    # filename = dc.to_csv()
+    # attrs = dc._collect_attr_names()
+    data = dc.collect()
+    filename = dc.to_csv()
 
+    df_fund = pd.read_csv(filename)
 # data = final_dict
 # data = final_dict['TSLA']
 # ["[%s] -> [%s] %s - %s" % (

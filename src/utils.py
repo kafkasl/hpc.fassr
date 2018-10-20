@@ -26,8 +26,8 @@ def load_obj(name):
 def to_df(file: str) -> pd.DataFrame:
     df = pd.read_csv(file)
 
-    df.set_index(['year', 'quarter'], inplace=True)
-    df.sort_index(inplace=True)
+    # df.set_index(['year', 'quarter'], inplace=True)
+    # df.sort_index(inplace=True)
 
     return df
 
@@ -74,7 +74,7 @@ def call_and_cache(url: str, **kwargs) -> dict:
 
         data_json = json.loads(r.text)
 
-        if not len(data_json['data']) > 0:
+        if 'data' in data_json.keys() and not len(data_json['data']) > 0:
             logging.debug("Data field is empty.\nRequest URL: %s" % (url))
 
         with open(cached_file, 'w') as f:
@@ -83,6 +83,7 @@ def call_and_cache(url: str, **kwargs) -> dict:
                 "Successfully cached url: %s to %s" % (url, cached_file))
 
     return data_json
+
 
 # calculation_tags = ['revenuegrowth',
 #                     'nopat',

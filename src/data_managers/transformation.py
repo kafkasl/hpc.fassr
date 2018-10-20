@@ -1,12 +1,13 @@
 # basically converts the fundamental variables into actual indicators
 import marshal
 from math import sqrt
-from tags import Tags
 
 import numpy as np
 import pandas as pd
 
 from tags import Tags
+
+
 # 'totalrevenue', 'totalliabilities', 'totalassets', 'basiceps',
 # 'dividendyield', 'bookvaluepershare', 'nwc', 'pricetoearnings', 'pricetobook'
 
@@ -36,13 +37,14 @@ class IndicatorsBuilder(object):
     # fcf2equity = 'fcf2equity'  # computed as fcf / equity TODO: which equity, total or only common
     # fcf2commonequity = 'fcf2commonequity'  # computed as fcf / equity TODO: which equity, total or only common
 
-    graham_indicators = ['totalrevenue', 'totalcurrentliabilities',
-                         'totalcurrentassets', 'nwc', 'earningsyield',
-                         'paymentofdividends',
-                         'epsgrowth', Tags.p2e, Tags.price2book,
+    # TODO: use totalcurrentliabilities? or totalliabilities (same for assets mutatis mutandem
+    graham_indicators = [Tags.totalrevenue, Tags.totalassets,
+                         Tags.totalliabilities, Tags.nwc, Tags.earningsyield, Tags.paymentofdividends,
+                         Tags.epsgrowth, Tags.p2e, Tags.price2book,
                          'grahamnumber', Tags.positions]
 
-    buffet_indicators = [Tags.p2e, Tags.book2market, Tags.fcf2equity, Tags.fcf2commonequity, Tags.positions]
+    buffet_indicators = [Tags.p2e, Tags.book2market, Tags.fcf2equity,
+                         Tags.fcf2commonequity, Tags.positions]
 
     # pricetoearnings will be 'nm' (= not meaningful) whenever it is negative
     # TODO maybe it should be substituted by inf, 0, or negative values
@@ -61,11 +63,13 @@ class IndicatorsBuilder(object):
         return attrs
 
     # TODO: ask Argimiro what to do with stocks with nan in eps (as Tesla which has no positive earnings)
+    # I've decided to imputate a 0 if N/A because negative eps or bvps is a bad thing, thus if graham number == 0,
+    # the price of the action will be never be inferior
     @staticmethod
     def _add_graham_indicators(df):
         def _graham_number(row):
             # sqrt(22.5 * eps * bvps)
-            gn = np.NaN
+            gn = 0
             try:
                 gn = sqrt(22.5 * row['basiceps'] * row['bookvaluepershare'])
             except ValueError:
@@ -134,7 +138,8 @@ class IndicatorsBuilder(object):
         return self
 
     def _remove_non_features(self):
-        self._df = self._df.drop(Tags.non_features_list(), axis=1, errors='ignore')
+        self._df = self._df.drop(Tags.basic_tags(), axis=1,
+                                 errors='ignore')
 
         return self
 
