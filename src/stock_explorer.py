@@ -1,13 +1,10 @@
-import os
-
 import graphviz
 import numpy as np
 from sklearn import tree
 
-from data_managers.extraction import DataCollector
+from data_managers.fundamentals_extraction import FundamentalsCollector
 from data_managers.imputation import DataPreprocessor
 from data_managers.transformation import IndicatorsBuilder, Indicators
-from utils import to_df
 
 
 def export_tree(clf, feature_names, name):
@@ -34,7 +31,7 @@ def imputate(df):
     return df
 
 
-symbols_list_name = 'dow30'
+symbols_list_name = 'sp500'
 start_year = 2006
 end_year = 2019
 threshold = 0.015
@@ -42,17 +39,11 @@ threshold = 0.015
 expert = 'graham'
 imputation_active = False
 
-dc = DataCollector(symbols_list_name=symbols_list_name,
-                   start_year=start_year,
-                   end_year=end_year)
+dc = FundamentalsCollector(symbols_list_name=symbols_list_name,
+                           start_year=start_year,
+                           end_year=end_year)
 
-filename = dc.csv_filename()
-
-if not os.path.isfile(filename):
-    data = dc.collect()
-    filename = dc.to_csv()
-
-all_df = to_df(filename)
+all_df = dc.collect()
 symbols = set(all_df['symbol'])
 
 print("Symbols to be processed: %s" % symbols)

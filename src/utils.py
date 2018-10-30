@@ -8,9 +8,15 @@ import pandas as pd
 import requests
 from requests.auth import HTTPBasicAuth
 
-from settings.basic import (logging, CACHE_ENABLED, CACHE_PATH,
+from settings.basic import (logging, CACHE_ENABLED, CACHE_PATH, DATA_PATH,
                             intrinio_username,
                             intrinio_password)
+
+
+def full_print(res):
+    with pd.option_context('display.max_rows', None, 'display.max_columns',
+                           None):
+        print(res)
 
 
 def save_obj(obj, name):
@@ -26,13 +32,27 @@ def load_obj(name):
 def to_df(file: str) -> pd.DataFrame:
     df = pd.read_csv(file)
 
-    # df.set_index(['year', 'quarter'], inplace=True)
-    # df.sort_index(inplace=True)
+    df.set_index(['year', 'quarter'], inplace=True)
+    df.sort_index(inplace=True)
 
     return df
 
 
-def call_and_cache(url: str, **kwargs) -> dict:
+def plot(x, y):
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    plt.gca().xaxis.set_major_locator(mdates.DayLocator())
+    plt.plot(x, y)
+    plt.gcf().autofmt_xdate()
+
+
+def load_symbol_list(symbols_list_name: str) -> list:
+    path = os.path.join(DATA_PATH, '%s_symbols.lst' % (symbols_list_name))
+    return open(path).read().split()
+
+
+def call_and_cache(url: str, cache=True) -> dict:
     """
     Calls the URL with GET method if the url file is not cached
     :param url: url to retrieve
@@ -49,13 +69,8 @@ def call_and_cache(url: str, **kwargs) -> dict:
     if not os.path.exists(os.path.dirname(cached_file)):
         os.makedirs(os.path.dirname(cached_file))
 
-    try:
-        no_cache = kwargs['no-cache']
-    except KeyError:
-        no_cache = False
-
     data_json = {}
-    if CACHE_ENABLED and os.path.exists(cached_file) and not no_cache:
+    if CACHE_ENABLED and os.path.exists(cached_file) and cache:
         logging.debug(
             "Data was present in cache and cache is enabled, loading: %s for %s" %
             (cached_file, url))
@@ -83,195 +98,3 @@ def call_and_cache(url: str, **kwargs) -> dict:
                 "Successfully cached url: %s to %s" % (url, cached_file))
 
     return data_json
-
-
-# calculation_tags = ['revenuegrowth',
-#                     'nopat',
-#                     'nopatmargin',
-#                     'investedcapital',
-#                     'investedcapitalturnover',
-#                     'investedcapitalincreasedecrease',
-#                     'freecashflow',
-#                     'netnonopex',
-#                     'netnonopobligations',
-#                     'ebit',
-#                     'depreciationandamortization',
-#                     'ebitda',
-#                     'capex',
-#                     'dfcfnwc',
-#                     'dfnwc',
-#                     'nwc',
-#                     'debt',
-#                     'ltdebtandcapleases',
-#                     'netdebt',
-#                     'totalcapital',
-#                     'bookvaluepershare',
-#                     'tangbookvaluepershare',
-#                     'marketcap',
-#                     'enterprisevalue',
-#                     'pricetobook',
-#                     'pricetotangiblebook',
-#                     'pricetorevenue',
-#                     'pricetoearnings',
-#                     'dividendyield',
-#                     'earningsyield',
-#                     'evtoinvestedcapital',
-#                     'evtorevenue',
-#                     'evtoebitda',
-#                     'evtoebit',
-#                     'evtonopat',
-#                     'evtoocf',
-#                     'evtofcff',
-#                     'ebitdagrowth',
-#                     'ebitgrowth',
-#                     'nopatgrowth',
-#                     'netincomegrowth',
-#                     'epsgrowth',
-#                     'ocfgrowth',
-#                     'fcffgrowth',
-#                     'investedcapitalgrowth',
-#                     'revenueqoqgrowth',
-#                     'ebitdaqoqgrowth',
-#                     'ebitqoqgrowth',
-#                     'nopatqoqgrowth',
-#                     'netincomeqoqgrowth',
-#                     'epsqoqgrowth',
-#                     'ocfqoqgrowth',
-#                     'fcffqoqgrowth',
-#                     'investedcapitalqoqgrowth',
-#                     'grossmargin',
-#                     'ebitdamargin',
-#                     'operatingmargin',
-#                     'ebitmargin',
-#                     'profitmargin',
-#                     'costofrevtorevenue',
-#                     'sgaextorevenue',
-#                     'rdextorevenue',
-#                     'opextorevenue',
-#                     'taxburdenpct',
-#                     'interestburdenpct',
-#                     'efftaxrate',
-#                     'assetturnover',
-#                     'arturnover',
-#                     'invturnover',
-#                     'faturnover',
-#                     'apturnover',
-#                     'dso',
-#                     'dio',
-#                     'dpo',
-#                     'ccc',
-#                     'finleverage',
-#                     'leverageratio',
-#                     'compoundleveragefactor',
-#                     'ltdebttoequity',
-#                     'debttoequity',
-#                     'roic',
-#                     'nnep',
-#                     'roicnnepspread',
-#                     'rnnoa',
-#                     'roe',
-#                     'croic',
-#                     'oroa',
-#                     'roa',
-#                     'noncontrollinginterestsharingratio',
-#                     'roce',
-#                     'divpayoutratio',
-#                     'augmentedpayoutratio',
-#                     'ocftocapex',
-#                     'stdebttocap',
-#                     'ltdebttocap',
-#                     'debttototalcapital',
-#                     'preferredtocap',
-#                     'noncontrolinttocap',
-#                     'commontocap',
-#                     'debttoebitda']
-#
-# cash_flow_statement_tags = ["netincome",
-#                             "netincomecontinuing",
-#                             "depreciationexpense",
-#                             "amortizationexpense",
-#                             "noncashadjustmentstonetincome",
-#                             "increasedecreaseinoperatingcapital",
-#                             "netcashfromcontinuingoperatingactivities",
-#                             "netcashfromoperatingactivities",
-#                             "purchaseofplantpropertyandequipment",
-#                             "acquisitions",
-#                             "otherinvestingactivitiesnet",
-#                             "netcashfromcontinuinginvestingactivities",
-#                             "netcashfrominvestingactivities",
-#                             "repaymentofdebt",
-#                             "repurchaseofcommonequity",
-#                             "paymentofdividends",
-#                             "issuanceofdebt",
-#                             "issuanceofcommonequity",
-#                             "otherfinancingactivitiesnet",
-#                             "netcashfromcontinuingfinancingactivities",
-#                             "netcashfromfinancingactivities",
-#                             "effectofexchangeratechanges",
-#                             "netchangeincash",
-#                             "cashinterestpaid",
-#                             "cashincometaxespaid"]
-#
-# balance_sheet_tags = ["cashandequivalents",
-#                       "restrictedcash",
-#                       "accountsreceivable",
-#                       "netinventory",
-#                       "prepaidexpenses",
-#                       "totalcurrentassets",
-#                       "netppe",
-#                       "goodwill",
-#                       "intangibleassets",
-#                       "othernoncurrentassets",
-#                       "othernoncurrentnonoperatingassets",
-#                       "totalnoncurrentassets",
-#                       "totalassets",
-#                       "shorttermdebt",
-#                       "accountspayable",
-#                       "accruedexpenses",
-#                       "othercurrentliabilities",
-#                       "totalcurrentliabilities",
-#                       "longtermdebt",
-#                       "othernoncurrentliabilities",
-#                       "totalnoncurrentliabilities",
-#                       "totalliabilities",
-#                       "commitmentsandcontingencies",
-#                       "redeemablenoncontrollinginterest",
-#                       "totalpreferredequity",
-#                       "commonequity",
-#                       "retainedearnings",
-#                       "aoci",
-#                       "totalcommonequity",
-#                       "totalequity",
-#                       "noncontrollinginterests",
-#                       "totalequityandnoncontrollinginterests",
-#                       "totalliabilitiesandequity",
-#                       "noncurrentnotereceivables",
-#                       "customerdeposits",
-#                       "currentdeferredrevenue",
-#                       "noncurrentdeferredrevenue"]
-#
-# income_statement_tags = ["operatingrevenue",
-#                          "totalrevenue",
-#                          "operatingcostofrevenue",
-#                          "totalcostofrevenue",
-#                          "totalgrossprofit",
-#                          "sgaexpense",
-#                          "rdexpense",
-#                          "totaloperatingexpenses",
-#                          "totaloperatingincome",
-#                          "totalinterestexpense",
-#                          "totalinterestincome",
-#                          "otherincome",
-#                          "totalotherincome",
-#                          "totalpretaxincome",
-#                          "incometaxexpense",
-#                          "netincomecontinuing",
-#                          "netincome",
-#                          "netincometononcontrollinginterest",
-#                          "netincometocommon",
-#                          "weightedavebasicsharesos",
-#                          "basiceps",
-#                          "weightedavedilutedsharesos",
-#                          "dilutedeps",
-#                          "weightedavebasicdilutedsharesos",
-#                          "basicdilutedeps"]
