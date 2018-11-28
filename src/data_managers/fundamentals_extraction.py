@@ -16,12 +16,13 @@ from utils import call_and_cache, save_obj, load_symbol_list
 
 class FundamentalsCollector(object):
     def __init__(self, symbols_list_name: str, start_year: int, end_year: int,
-                 cache: bool = CACHE_ENABLED):
+                 cache: bool = CACHE_ENABLED, reuse_csv: bool = True):
 
         self.symbols_list_name = symbols_list_name
         self.start_year = start_year
         self.end_year = end_year
         self.cache = cache
+        self.reuse_csv = reuse_csv
 
         self.version = 0.2
 
@@ -36,7 +37,6 @@ class FundamentalsCollector(object):
         self.statements = ["income_statement", "balance_sheet",
                            "cash_flow_statement", "calculations"]
         self.year_range = list(range(self.start_year, self.end_year))
-
         # Template URLs
         self.fundamentals_url = Template(
             "https://api.intrinio.com/financials/standardized?"
@@ -262,7 +262,7 @@ class FundamentalsCollector(object):
 
     def collect(self) -> pd.DataFrame:
 
-        if self.cache and os.path.isfile(self.csv_filename):
+        if self.reuse_csv and os.path.isfile(self.csv_filename):
             dataframe = pd.read_csv(self.csv_filename)
 
         else:
@@ -289,11 +289,11 @@ class FundamentalsCollector(object):
 
 
 if __name__ == '__main__':
-    symbols_list_name = 'sp500'
-    # symbols_list_name = 'debug'
+    # symbols_list_name = 'sp500'
+    symbols_list_name = 'debug'
     start_year = 2006
     end_year = 2019
 
     df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
                                     start_year=start_year,
-                                    end_year=end_year, cache=False).collect()
+                                    end_year=end_year, cache=True, reuse_csv=False).collect()

@@ -10,7 +10,7 @@ class PriceExtractor(object):
                                "identifier=${symbol}&"
                                "start_date=${start_date}&"
                                "page_number=${page_number}&"
-                               "frequency=weekly&sort_order=asc")
+                               "frequency=daily&sort_order=asc")
 
     def __init__(self, symbols_list_name: str = 'dow30',
                  start_date='2006-01-01'):
@@ -22,7 +22,7 @@ class PriceExtractor(object):
     def _prices_to_list(data: list):
         prices = []
         for day in data:
-            prices.append((day['date'], day['close']))
+            prices.append((day['date'], day['adj_close']))
 
         return prices
 

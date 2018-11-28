@@ -1,5 +1,9 @@
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LinearRegression, Lasso
+from sklearn.svm import SVR
 
 from data_managers.fundamentals_extraction import FundamentalsCollector
 from data_managers.price_extraction import PriceExtractor
@@ -9,21 +13,15 @@ from tags import Tags
 from utils import load_symbol_list
 
 
-def add_new_features_placeholders(df, tags):
+def add_new_features_placeholders(df_, tags):
     for t in tags:
-        df[t] = np.NaN
+        df_[t] = np.NaN
 
-    return df
-
-
-def deal_missings(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.replace('nm', np.NaN)
-    df = df.dropna(axis=1)
-    return df
+    return df_
 
 
 # while not decided imputation/removals
-symbols_list_name = 'dow30'
+symbols_list_name = 'sp500'
 symbols = load_symbol_list(symbols_list_name)
 start_date = '2006-01-01'
 end_date = '2019-12-31'
@@ -39,148 +37,190 @@ df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
                                 start_year=start_year,
                                 end_year=end_year).collect()
 
-sic_info = load_sic(symbols_list_name)
+sic_code, sic_industry = load_sic(symbols_list_name)
 
-df_fund['date'] = pd.to_datetime(df_fund['date'], format=DATE_FORMAT)
-df_prices['date'] = pd.to_datetime(df_prices['date'], format=DATE_FORMAT)
+# TODO: drop_duplicates an incorrect value from intrinio
+df_fund = (df_fund
+    .drop_duplicates(['date', 'symbol'], keep='first')
+    .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
+    .set_index('date')
+    .groupby('symbol')
+    .resample('1W')
+    .ffill()
+    .replace('nm', np.NaN)
+    .sort_index()
+    .assign(
+    bookvaluepershare=lambda r: pd.to_numeric(r.bookvaluepershare)))
 
-# add sic info
-df_fund['sic_code'] = df_fund.apply(lambda r: sic_info[r['symbol']], axis=1)
-df_fund['sic_industry'] = df_fund.apply(lambda r: int(r['sic_code'] / 1000),
-                                        axis=1)
-
+df_fund = pd.concat(
+    [pd.to_numeric(df_fund[col], errors='ignore') for col in df_fund.columns],
+    axis=1)
 # set common index for outer join
-df_fund = df_fund.set_index(['symbol', 'date'])
-df_prices = df_prices.set_index(['symbol', 'date'])
 
-df_fund.sort_index(inplace=True)
-df_prices.sort_index(inplace=True)
+df_prices = (df_prices
+             .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
+             .set_index('date')
+             .groupby('symbol')
+             .resample('1W')
+             .ffill()
+             .sort_index())
 
-df_prices = add_new_features_placeholders(df_prices, desired_tags)
+available_symbols = set([symbol for symbol, date in df_fund.index.values])
+unavailable = [s for s in symbols if s not in available_symbols]
+removed_symbols = ['ULTA']
+print("Not available symbols: %s\nRemoved symbols: %s" %
+      (unavailable, removed_symbols))
+for s in removed_symbols:
+    available_symbols.remove(s)
+merged_dfs = []
+for symbol in available_symbols:
+    ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]], join='inner',
+                   axis=1)
 
+    bins = pd.IntervalIndex.from_tuples(
+        [(-np.inf, -0.015), (-0.015, 0.015), (0.015, np.inf)])
+    df_tidy = (pd.DataFrame()
+               .assign(eps=ds.basiceps,
+                       price=ds.price,
+                       p2b=ds.price / ds.bookvaluepershare,
+                       p2e=ds.price / ds.basiceps,
+                       p2r=ds.price / ds.totalrevenue,
+                       div2price=pd.to_numeric(
+                           ds.cashdividendspershare) / pd.to_numeric(ds.price),
+                       divpayoutratio=ds.divpayoutratio,
+                       # Performance measures
+                       roe=ds.roe,
+                       roic=ds.roic,
+                       roa=ds.roa,
+                       # eva= ???,
+                       # Efficiency measures
+                       assetturnover=ds.assetturnover,
+                       invturnonver=ds.invturnover,
+                       profitmargin=ds.profitmargin,
+                       debtratio=ds.totalassets / ds.totalliabilities,
+                       ebittointerestex=pd.to_numeric(ds.ebit) / pd.to_numeric(
+                           ds.totalinterestexpense),
+                       # aka times-interest-earned ratio
+                       # cashcoverage=ds.ebit + depretitation) / ds.totalinterestexpense,
+                       # Liquidity measures
+                       wc=ds.nwc,
+                       wc2a=pd.to_numeric(ds.nwc) / pd.to_numeric(
+                           ds.totalassets),
+                       currentratio=ds.totalcurrentassets / ds.totalcurrentliabilities,
+                       # Misc. info
+                       symbol=symbol,
+                       sic_info=sic_code[symbol],
+                       sic_industry=sic_industry[symbol],
+                       # Target
+                       y=(df_prices.loc[symbol].price.shift(1) / ds.price) - 1,
+                       positions=lambda r: pd.cut(r.y, bins),
+                       next_price=df_prices.loc[symbol].price.shift(1)
+                       )
+               .set_index('symbol', append=True))
 
-def add_weekly_indicators(dfp, row, ps, pe):
-    tags2func = {
-        Tags.pricetobook: lambda r, row=row:
-        r[Tags.price] / row[Tags.bookvaluepershare],
+    merged_dfs.append(df_tidy)
 
-        Tags.pricetorevenue: lambda r, row=row:
-        r[Tags.price] / row[Tags.totalrevenue],
+del df_fund, df_prices
 
-        Tags.pricetoearnings: lambda r, row=row:
-        r[Tags.price] / row[Tags.basiceps],
+print("Added weekly indicators.")
 
-        # Tags.dps2price: lambda r:
-        # r[Tags.cashdividendspershare] / r[Tags.price],
-        #
-        # Tags.dividendspayoutratio: lambda r:
-        # r[Tags.cashdividendspershare] / r[Tags.basiceps],
-        #
-        # Tags.roe: lambda r: r[Tags.roe],
-        # Tags.roa: lambda r: r[Tags.roa],
-        # Tags.profitmargin: lambda r: r[Tags.profitmargin],
-        #
-        # Tags.debtratio: lambda r:
-        # r[Tags.totalliabilities] / r[Tags.totalassets],
-        # # Tags.cashcoverageratio: lambda r: (),
-        #
-        # Tags.currentratio: lambda r:
-        # r[Tags.totalcurrentassets] / r[Tags.totalcurrentliabilities]
-    }
-    for tag, func in tags2func.items():
-        dfp.loc[ps:pe, tag] = dfp[ps:pe].apply(func, axis=1)
-
-
-new_dfs = []
-symbols.remove('DWDP')
-for symbol in symbols:
-    # try:
-    dff = df_fund.loc[symbol]
-    dfp = df_prices.loc[symbol]
-
-    dfp[Tags.next_price] = dfp.[Tags.price].shift(1)
-
-    for (date, row) in dff.iterrows():
-        ps, pe = row[Tags.rep_period].split(":")
-
-        add_weekly_indicators(dfp, row, ps, pe)
-
-    # dfp = dfp.dropna(axis=0)
-
-    if dfp.shape[0] > 0:
-        dfp[Tags.symbol] = symbol
-
-        # add sic info
-        dfp['sic_code'] = dfp.apply(lambda r: sic_info[r['symbol']], axis=1)
-        dfp['sic_industry'] = dfp.apply(lambda r: int(r['sic_code'] / 1000),
-                                        axis=1)
-
-        new_dfs.append(dfp)
-        # except ValueError as e:
-        #     print("Error processing %s: %s" % (symbol, e))
-
-print("Added weekly indicators. Proceeding to merge them into a single df.")
-df = pd.concat(new_dfs)
-df = df.reset_index()
-df['date'] = pd.to_datetime(df['date'], format=DATE_FORMAT)
-df = df.set_index(['date', 'symbol'])
-df = df.sort_index()
-
-
-def z_score(df, date, tag, sic):
-    res = df.loc[date].apply(lambda r: (r[tag]
-                                        - np.mean(
-        df.loc[date].query('sic_industry==%s' % r[sic])[tag]))
-                                       / np.std(
-        df.loc[date].query('sic_industry==%s' % r[sic])[tag]), axis=1)
-
-    return res
+# TODO:  there as a paper where they said how to build the survivor bias list
+attrs = ['eps', 'p2b', 'p2e', 'p2r', 'div2price',
+         'divpayoutratio', 'roe', 'roic', 'roa', 'assetturnover',
+         'invturnonver',
+         'profitmargin', 'debtratio', 'ebittointerestex', 'wc', 'wc2a',
+         'currentratio']
 
 
-print('Adding z-scores.')
+df = (pd.concat(merged_dfs)
+      .sort_index())
 
-sic = 'sic_industry'
+df.groupby(['date']).size() > 28
 
-dates = list(set([d.strftime(DATE_FORMAT) for d, s in df.index.values]))
-for date in dates:
-    for tag in desired_tags:
-        df.loc[date, 'z-' + tag] = z_score(df, date, tag, sic)
+print("Adding z-scores...")
+# for tag in desired_tags:
+dfz = pd.DataFrame(df, copy=True)
+dfn = pd.DataFrame(df, copy=True)
+for tag in attrs:
+    v = df[tag]
+    g = df.groupby(['date', 'sic_industry'])[tag]
+    dfz[tag] = (v - g.transform(np.mean)) / g.transform(np.std)
+    dfn[tag] = v
 
+# columns which have become null, is because they are single groups (can't do z-score) just set a 0 for them
+for c in attrs:
+    to_fix = dfz[np.isnan(dfz[c]) & ~(np.isnan(dfn[c]))].index.values
+    dfz.loc[to_fix, c] = 0
 
 
 print("Formatting the dataset into x, y for model learning.")
 # Drop the NaN
-x_indicators = [Tags.pricetobook, Tags.pricetorevenue, Tags.pricetoearnings]
-df_filtered = df[x_indicators + [Tags.next_price]].dropna(axis=0)
-target = Tags.next_price
-x, y = df_filtered[x_indicators].values, df_filtered[target].values
+# We drop now, because doing it prior to z-scores loses info.
+dfn = (dfn.dropna(axis=0)
+       .replace(float('inf'), np.finfo(np.float32).max)
+       .replace(-float('inf'), np.finfo(np.float32).min))
+dfz = dfz.dropna(axis=0)
 
+# Choose dataset
+# df = dfn.reset_index().set_index('date')
+df = dfz.reset_index().set_index('date')
 
+idx = 0
+indices = sorted(list(set(df.index.values)))
 
-# sics = set(df[z_tags])
-# dates = set([d for d, s in df.index.values])
-# for sic in sics:
-#     for date in dates:
-#         mean = np.mean()
+models = defaultdict(list)
+classifiers = {'LR': LinearRegression, 'Lasso': Lasso, 'SVM': SVR}
 
+# 53 is a magic number, 52 weeks for training 1 for prediction
+while idx + 53 < len(indices) and indices[idx + 53] <= indices[-1]:
+    train = df.loc[indices[idx]:indices[idx + 52]]
+    test = df.loc[indices[idx + 53]]
 
+    train_x, train_y = train[attrs], train.y
+    test_x, test_y = test[attrs], test.y
 
-# for ((date, symbol), row) in df.iterrows():
-# day_df = df.loc[date]
-# df_aux = day_df[day_df['sic_industry'] == row['sic_industry']]
-# mean = np.
-# df.loc[date].query('sic_industry==%s' % s)
-#
-# mean, std = {}, {}
-#
-# for tag in [Tags.pricetobook, Tags.pricetoearnings, Tags.pricetorevenue]:
-#     for
-# sic_industry in set(final_df['sic_industry'].values):
-# values = final_df.loc[final_df['sic_industry'] == sic_industry]
-# mean[tag + '-' + sic_industry] = np.mean(values)
-# std[tag + '-' + sic_industry] = np.std(values)
-# mean[tag + '-' + sic_industry] = np.mean(values)
-# std[tag + '-' + sic_industry] = np.std(values)
+    # TODO: add DT, RAF, NN, Lasso, LR, SVM,
 
-# final_df['z-%s' % Tags.pricetobook] = final_df.apply(
-#     lambda r: (r[tag] - np.mean(values)) / np.std(values), axis=1)
+    print("Training period %s with %s instances." % (idx, train_x.shape[0]))
+    for name, model in classifiers.items():
+        clf = model().fit(train_x, train_y)
+
+        df.loc[indices[idx + 53], name] = clf.predict(test_x)
+
+        # print("[%s] Score: %s" % (name, clf.score(test_x, test_y)))
+
+        models[name].append(clf.score(test_x, test_y))
+
+    idx += 1
+
+df_trade = df.dropna(axis=0)
+money = {tag: [1000] for tag in classifiers.keys()}
+choices = {tag: [] for tag in classifiers.keys()}
+indices = sorted(list(set(df_trade.index.values)))
+k = 10
+# topk, botk = k[0], k[0]
+for name in classifiers.keys():
+    df_clf = df_trade[['y', name]]
+
+    print("Trading for %s" % name)
+    for day in indices:
+        df_aux = df_clf.loc[day].sort_values(name)
+
+        botk = df_aux.iloc[0:k].query('%s<0' % name)
+        topk = df_aux.iloc[-k - 1: -1].query('%s>0' % name)
+        # assert botk[botk[name] > 0].shape[0] == 0
+        # assert topk[topk[name] < 0].shape[0] == 0
+
+        choices[name].append((topk, botk))
+        stash = money[name][-1] / (botk.shape[0] + topk.shape[0])
+
+        long = np.sum(np.add(stash, np.multiply(topk.y, stash)))
+        short = np.sum(np.add(stash, np.multiply(botk.y, -stash)))
+
+        money[name].append(long + short)
+
+        print("Day %s: %s (%s, %s)" % (
+            day, money[name][-1], botk.shape[0], topk.shape[0]))
+        # choices[clf][day] =
+
+results = pd.DataFrame(money, index=[indices[0]] + indices)

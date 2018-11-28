@@ -1,6 +1,6 @@
 import pandas as pd
 
-from utils import to_df, load_obj
+from utils import load_obj
 
 
 def null_counter(df):
@@ -23,16 +23,16 @@ def inspect(df):
     na = df.isna().sum()
     nm = (df == 'nm').sum()
 
-    nu = pd.DataFrame(nu.reset_index())\
-        .rename(index=str, columns={'index': 'attr', 0: 'isnull()'})\
+    nu = pd.DataFrame(nu.reset_index()) \
+        .rename(index=str, columns={'index': 'attr', 0: 'isnull()'}) \
         .set_index('attr').sort_index()
 
-    na = pd.DataFrame(na.reset_index())\
-        .rename(index=str, columns={'index': 'attr', 0: 'isna()'})\
+    na = pd.DataFrame(na.reset_index()) \
+        .rename(index=str, columns={'index': 'attr', 0: 'isna()'}) \
         .set_index('attr').sort_index()
 
-    nm = pd.DataFrame(nm.reset_index())\
-        .rename(index=str, columns={'index': 'attr', 0: 'isnm()'})\
+    nm = pd.DataFrame(nm.reset_index()) \
+        .rename(index=str, columns={'index': 'attr', 0: 'isnm()'}) \
         .set_index('attr').sort_index()
 
     result = nu.join(nm)
@@ -43,7 +43,6 @@ def inspect(df):
 
     result = result.round(3)
 
-
     return result
 
 
@@ -53,11 +52,9 @@ def data_health(df: pd.DataFrame):
     print('Non-nm cols: %s' % nm_counter(df))
 
 
-
 def health_check(symbols_list_name='dow30', save=False):
-
     filename = '../data/csv/%s_monolithic.csv' % symbols_list_name
-    all_df = to_df(filename)
+    all_df = pd.read_csv(filename)
 
     attrs = load_obj('../data/intrinio_tags')
 
@@ -84,8 +81,37 @@ def health_check(symbols_list_name='dow30', save=False):
             res.to_csv('../data/health_check_%s.csv' % group)
 
 
-
 if __name__ == '__main__':
     symbols_list_name = 'sp500'
     res = health_check(symbols_list_name=symbols_list_name)
 
+
+
+# THIS WAS ORIGINALLY IN merger.py BUT WAS DEEMED IRRELEVANT
+
+# THIS ARE ALL HEALTH CHECKS for the data not relevant.
+# df_calc = df_fund[[t for t in Tags.calculations if t in df_fund.columns]]
+# df_is = df_fund[[t for t in Tags.income_statement if t in df_fund.columns]]
+# df_cf = df_fund[[t for t in Tags.cash_flow if t in df_fund.columns]]
+# df_bs = df_fund[[t for t in Tags.balance_sheet if t in df_fund.columns]]
+#
+#
+# def missing_info(df, doc):
+#     print("\n\n\n[%s] NM per column:" % doc)
+#     with pd.option_context('display.max_rows', None, 'display.max_columns',
+#                            None):
+#         print((df == 'nm').sum())
+#     print("\n[%s] NaN per column:" % doc)
+#     with pd.option_context('display.max_rows', None, 'display.max_columns',
+#                            None):
+#         print(df.isna().sum())
+#
+#
+# missing_info(df_calc, 'calculations')
+# missing_info(df_is, 'incomse statment')
+# missing_info(df_cf, 'cash flows')
+# missing_info(df_bs, 'balance sheet')
+
+# after having a look, maybe just dropping the nan/nm is good enough for the documents
+# for the calculations, they basically are useless if I need to recompute them
+# with the day's share price

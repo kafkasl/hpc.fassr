@@ -344,7 +344,7 @@ class Tags(object):
     price = 'price'
     next_price = 'next_price'
     shareprice = 't: current_price'
-    t_daily_increase = 't: daily_increase'
+    increase = 't: daily_increase'
     t_half_month_increase = 't: half_month_increase'
     t_monthly_increase = 't: monthly_increase'
     t_next_half_mean = 't: next_half_mean'
@@ -703,7 +703,7 @@ class Tags(object):
                       cls.t_curr_month_mean,
                       cls.t_curr_period_mean,
                       cls.shareprice,
-                      cls.t_daily_increase,
+                      cls.increase,
                       cls.t_half_month_increase,
                       cls.t_monthly_increase,
                       cls.t_next_half_mean,
