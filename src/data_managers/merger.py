@@ -13,19 +13,13 @@ from tags import Tags
 from utils import load_symbol_list
 
 
-def add_new_features_placeholders(df_, tags):
-    for t in tags:
-        df_[t] = np.NaN
-
-    return df_
-
-
 # while not decided imputation/removals
 symbols_list_name = 'sp500'
 symbols = load_symbol_list(symbols_list_name)
 start_date = '2006-01-01'
 end_date = '2019-12-31'
 desired_tags = Tags.desired_indicators()
+resample_period = '1W'
 
 start_year = int(start_date[0:4])
 end_year = int(end_date[0:4])
@@ -41,15 +35,15 @@ sic_code, sic_industry = load_sic(symbols_list_name)
 
 # TODO: drop_duplicates an incorrect value from intrinio
 df_fund = (df_fund
-    .drop_duplicates(['date', 'symbol'], keep='first')
-    .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
-    .set_index('date')
-    .groupby('symbol')
-    .resample('1W')
-    .ffill()
-    .replace('nm', np.NaN)
-    .sort_index()
-    .assign(
+           .drop_duplicates(['date', 'symbol'], keep='first')
+           .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
+           .set_index('date')
+           .groupby('symbol')
+           .resample(resample_period)
+           .ffill()
+           .replace('nm', np.NaN)
+           .sort_index()
+           .assign(
     bookvaluepershare=lambda r: pd.to_numeric(r.bookvaluepershare)))
 
 df_fund = pd.concat(
@@ -61,7 +55,7 @@ df_prices = (df_prices
              .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
              .set_index('date')
              .groupby('symbol')
-             .resample('1W')
+             .resample(resample_period)
              .ffill()
              .sort_index())
 
@@ -131,7 +125,6 @@ attrs = ['eps', 'p2b', 'p2e', 'p2r', 'div2price',
          'profitmargin', 'debtratio', 'ebittointerestex', 'wc', 'wc2a',
          'currentratio']
 
-
 df = (pd.concat(merged_dfs)
       .sort_index())
 
@@ -151,7 +144,6 @@ for tag in attrs:
 for c in attrs:
     to_fix = dfz[np.isnan(dfz[c]) & ~(np.isnan(dfn[c]))].index.values
     dfz.loc[to_fix, c] = 0
-
 
 print("Formatting the dataset into x, y for model learning.")
 # Drop the NaN
@@ -206,6 +198,7 @@ for name in classifiers.keys():
     for day in indices:
         df_aux = df_clf.loc[day].sort_values(name)
 
+        # TODO add a upper and lower threshold to consider investing
         botk = df_aux.iloc[0:k].query('%s<0' % name)
         topk = df_aux.iloc[-k - 1: -1].query('%s>0' % name)
         # assert botk[botk[name] > 0].shape[0] == 0

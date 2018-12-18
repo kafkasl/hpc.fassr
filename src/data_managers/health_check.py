@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
 
 
-# THIS WAS ORIGINALLY IN merger.py BUT WAS DEEMED IRRELEVANT
+# THIS WAS ORIGINALLY IN merger_.py BUT WAS DEEMED IRRELEVANT
 
 # THIS ARE ALL HEALTH CHECKS for the data not relevant.
 # df_calc = df_fund[[t for t in Tags.calculations if t in df_fund.columns]]
