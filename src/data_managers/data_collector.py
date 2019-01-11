@@ -1,3 +1,4 @@
+import logging
 
 import numpy as np
 import pandas as pd
@@ -7,15 +8,12 @@ from data_managers.fundamentals_extraction import FundamentalsCollector
 from data_managers.price_extraction import PriceExtractor
 from data_managers.sic import load_sic
 from settings.basic import DATE_FORMAT
-from tags import Tags
 from utils import load_symbol_list
 
 
 @task(returns=3)
-def get_data(resample_period = '1W'):
-
+def get_data(resample_period='1W', symbols_list_name='sp500'):
     # while not decided imputation/removals
-    symbols_list_name = 'sp500'
     symbols = load_symbol_list(symbols_list_name)
     start_date = '2006-01-01'
     end_date = '2019-12-31'
@@ -34,24 +32,26 @@ def get_data(resample_period = '1W'):
 
     # TODO: drop_duplicates an incorrect value from intrinio
     df_fund = (df_fund
-               .drop_duplicates(['date', 'symbol'], keep='first')
-               .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
-               .set_index('date')
-               .groupby('symbol')
-               .resample(resample_period)
-               .ffill()
-               .replace('nm', np.NaN)
-               .sort_index()
-               .assign(
+        .drop_duplicates(['date', 'symbol'], keep='first')
+        .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
+        .set_index('date')
+        .groupby('symbol')
+        .resample(resample_period)
+        .ffill()
+        .replace('nm', np.NaN)
+        .sort_index()
+        .assign(
         bookvaluepershare=lambda r: pd.to_numeric(r.bookvaluepershare)))
 
     df_fund = pd.concat(
-        [pd.to_numeric(df_fund[col], errors='ignore') for col in df_fund.columns],
+        [pd.to_numeric(df_fund[col], errors='ignore') for col in
+         df_fund.columns],
         axis=1)
     # set common index for outer join
 
     df_prices = (df_prices
-                 .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
+                 .assign(
+        date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
                  .set_index('date')
                  .groupby('symbol')
                  .resample(resample_period)
@@ -63,11 +63,16 @@ def get_data(resample_period = '1W'):
     removed_symbols = ['ULTA']
     print("Not available symbols: %s\nRemoved symbols: %s" %
           (unavailable, removed_symbols))
+
     for s in removed_symbols:
-        available_symbols.remove(s)
+        try:
+            available_symbols.remove(s)
+        except KeyError:
+            logging.debug("Couldn't remove symbol %s" % s)
     merged_dfs = []
     for symbol in available_symbols:
-        ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]], join='inner',
+        ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]],
+                       join='inner',
                        axis=1)
 
         bins = pd.IntervalIndex.from_tuples(
@@ -79,7 +84,8 @@ def get_data(resample_period = '1W'):
                            p2e=ds.price / ds.basiceps,
                            p2r=ds.price / ds.totalrevenue,
                            div2price=pd.to_numeric(
-                               ds.cashdividendspershare) / pd.to_numeric(ds.price),
+                               ds.cashdividendspershare) / pd.to_numeric(
+                               ds.price),
                            divpayoutratio=ds.divpayoutratio,
                            # Performance measures
                            roe=ds.roe,
@@ -91,7 +97,8 @@ def get_data(resample_period = '1W'):
                            invturnonver=ds.invturnover,
                            profitmargin=ds.profitmargin,
                            debtratio=ds.totalassets / ds.totalliabilities,
-                           ebittointerestex=pd.to_numeric(ds.ebit) / pd.to_numeric(
+                           ebittointerestex=pd.to_numeric(
+                               ds.ebit) / pd.to_numeric(
                                ds.totalinterestexpense),
                            # aka times-interest-earned ratio
                            # cashcoverage=ds.ebit + depretitation) / ds.totalinterestexpense,
@@ -105,7 +112,8 @@ def get_data(resample_period = '1W'):
                            sic_info=sic_code[symbol],
                            sic_industry=sic_industry[symbol],
                            # Target
-                           y=(df_prices.loc[symbol].price.shift(1) / ds.price) - 1,
+                           y=(df_prices.loc[symbol].price.shift(
+                               1) / ds.price) - 1,
                            positions=lambda r: pd.cut(r.y, bins),
                            next_price=df_prices.loc[symbol].price.shift(1)
                            )
