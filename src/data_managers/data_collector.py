@@ -122,8 +122,6 @@ def post_process(df):
              'profitmargin', 'debtratio', 'ebittointerestex', 'wc', 'wc2a',
              'currentratio']
 
-
-
     print("Adding z-scores...")
     # for tag in desired_tags:
     dfz = pd.DataFrame(df, copy=True)
@@ -160,16 +158,16 @@ def get_data(resample_period='1W', symbols_list_name='sp500'):
     start_year = int(start_date[0:4])
     end_year = int(end_date[0:4])
 
-    df_prices = get_prices(symbols_list_name,
-                           start_date,
-                           resample_period)
+    df_prices = get_prices(symbols_list_name=symbols_list_name,
+                           start_date=start_date,
+                           resample_period=resample_period)
 
-    df_fund = get_fundamentals(symbols_list_name,
-                               start_year,
-                               end_year,
-                               resample_period)
+    df_fund = get_fundamentals(symbols_list_name=symbols_list_name,
+                               start_year=start_year,
+                               end_year=end_year,
+                               resample_period=resample_period)
 
-    sic_code, sic_industry = load_sic(symbols_list_name)
+    sic_code, sic_industry = load_sic(symbols_list_name=symbols_list_name)
 
     alist_path = os.path.join(DATA_PATH, 'available_%s' % symbols_list_name)
 
@@ -197,8 +195,9 @@ def get_data(resample_period='1W', symbols_list_name='sp500'):
     merged_dfs = [None] * len(available_symbols)
 
     for i, symbol in enumerate(available_symbols):
-        merged_dfs[i] = process_symbol(symbol + '_', df_fund, df_prices, sic_code,
-                                       sic_industry)
+        merged_dfs[i] = process_symbol(symbol=symbol + '_', df_fund=df_fund,
+                                       df_prices=df_prices, sic_code=sic_code,
+                                       sic_industry=sic_industry)
 
     del df_fund, df_prices
 
