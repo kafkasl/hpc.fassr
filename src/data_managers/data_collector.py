@@ -14,7 +14,18 @@ from utils import load_symbol_list
 
 
 @task(returns=pd.DataFrame)
-def get_prices(symbols_list_name, start_date, resample_period):
+def get_prices(symbols_list_name, start_date='2006-01-01',
+               resample_period='1W', only_prices=False):
+    prices = _get_prices(symbols_list_name, start_date, resample_period)
+
+    if only_prices:
+        return prices.price
+    else:
+        return prices
+
+
+def _get_prices(symbols_list_name, start_date='2006-01-01',
+                resample_period='1W'):
     df_prices = PriceExtractor(symbols_list_name=symbols_list_name,
                                start_date=start_date).collect()
 
@@ -60,6 +71,7 @@ def get_fundamentals(symbols_list_name, start_year, end_year, resample_period):
 
 @task(returns=pd.DataFrame)
 def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
+    # TODO remove this once pyCOMPSs supports single-char parameters
     symbol = symbol[:-1]
     print("Processing symbol [%s]" % symbol)
     ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]],
@@ -105,7 +117,7 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
                        # Target
                        y=(df_prices.loc[symbol].price.shift(
                            1) / ds.price) - 1,
-                       positions=lambda r: pd.cut(r.y, bins),
+                       positions=lambda r: pd.cut(r.y, bins).cat.codes - 1,
                        next_price=df_prices.loc[symbol].price.shift(1)
                        )
                .set_index('symbol', append=True))
@@ -149,10 +161,10 @@ def post_process(df):
     return dfn, dfz, attrs
 
 
-def get_data(resample_period='1W', symbols_list_name='sp500'):
+def get_data(resample_period='1W', symbols_list_name='sp500',
+             start_date='2006-01-01'):
     # while not decided imputation/removals
     symbols = load_symbol_list(symbols_list_name)
-    start_date = '2006-01-01'
     end_date = '2019-12-31'
 
     start_year = int(start_date[0:4])
