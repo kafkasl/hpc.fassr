@@ -45,16 +45,16 @@ if __name__ == '__main__':
             df = datasets[d_key]
 
             dataset_name = '%s_%s' % (d_key, resample_period)
-            portfolios, accs = explore_model(df=df, prices=prices,
+            portfolios = explore_model(df=df, prices=prices,
                                              dataset_name=dataset_name,
                                              attrs=attrs,
                                              magic_number=magic_number,
                                              save_path=save_path)
             results[dataset_name] = portfolios
-            accuracies[dataset_name] = accs
+            # accuracies[dataset_name] = accs
 
     results = compss_wait_on(results)
-    accuracies = compss_wait_on(accuracies)
+    # accuracies = compss_wait_on(accuracies)
     print("Waiting for the results.")
     print(results)
     total_time = time()

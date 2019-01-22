@@ -154,7 +154,7 @@ def get_classification_data(df, attrs, indices, idx, magic_number):
     return train_x, train_y, test_x, test_y
 
 
-@task(returns=2)
+@task(returns=dict)
 def run_model(df, prices, dataset_name, attrs, magic_number, k, top_thresh=0,
               bot_thresh=0):
     # print("Trading with dataset: %s" % dataset_name)
@@ -216,7 +216,7 @@ def run_model(df, prices, dataset_name, attrs, magic_number, k, top_thresh=0,
                                      top_thresh=top_thresh,
                                      bot_thresh=bot_thresh)
 
-    return portfolios, accuracies
+    return portfolios
 
 
 def explore_model(df, prices, dataset_name, attrs, save_path, magic_number=53, k=10):
