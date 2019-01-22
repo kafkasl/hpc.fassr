@@ -72,7 +72,7 @@ def get_fundamentals(symbols_list_name, start_year, end_year, resample_period):
 @task(returns=pd.DataFrame)
 def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
     # TODO remove this once pyCOMPSs supports single-char parameters
-    symbol = symbol[:-1]
+    symbol = symbol
     print("Processing symbol [%s]" % symbol)
     ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]],
                    join='inner',
@@ -207,7 +207,7 @@ def get_data(resample_period='1W', symbols_list_name='sp500',
     merged_dfs = [None] * len(available_symbols)
 
     for i, symbol in enumerate(available_symbols):
-        merged_dfs[i] = process_symbol(symbol=symbol + '_', df_fund=df_fund,
+        merged_dfs[i] = process_symbol(symbol=symbol, df_fund=df_fund,
                                        df_prices=df_prices, sic_code=sic_code,
                                        sic_industry=sic_industry)
 

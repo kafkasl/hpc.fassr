@@ -5,7 +5,7 @@ from pycompss.api.api import compss_wait_on
 
 from data_managers.data_collector import get_data, get_prices
 from settings.basic import PROJECT_ROOT
-from training import explore_model
+from training import explore_models
 
 if __name__ == '__main__':
     start_time = time()
@@ -45,7 +45,7 @@ if __name__ == '__main__':
             df = datasets[d_key]
 
             dataset_name = '%s_%s' % (d_key, resample_period)
-            portfolios = explore_model(df=df, prices=prices,
+            portfolios = explore_models(df=df, prices=prices,
                                              dataset_name=dataset_name,
                                              attrs=attrs,
                                              magic_number=magic_number,

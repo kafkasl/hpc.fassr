@@ -10,11 +10,13 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC, SVR
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-from data_managers.data_collector import _get_prices
 from models.portfolio import Portfolio, Position
 from settings.basic import logging
 
 matplotlib.use('Agg')
+
+REGRESSION = 'REG'
+CLASSIFICATION = 'CAT'
 
 
 def save(items, filename, path):
@@ -154,14 +156,54 @@ def get_classification_data(df, attrs, indices, idx, magic_number):
     return train_x, train_y, test_x, test_y
 
 
-@task(returns=dict)
-def run_model(df, prices, dataset_name, attrs, magic_number, k, top_thresh=0,
-              bot_thresh=0):
-    # print("Trading with dataset: %s" % dataset_name)
+def train(df, attrs, clf, clf_name, models_params, mode, magic_number):
     idx = 0
     indices = sorted(list(set(df.index.values)))
 
-    accuracies = defaultdict(list)
+    # magic number is by default 53, 52 weeks for training 1 for prediction
+    while idx + magic_number < len(indices) and indices[idx + magic_number] <= \
+            indices[-1]:
+
+        if mode == CLASSIFICATION:
+            train_x, train_y, test_x, test_y = \
+                get_classification_data(df, attrs, indices, idx, magic_number)
+        elif mode == REGRESSION:
+            # get regression datasets (target is float y -> ratio of increase)
+            train_x, train_y, test_x, test_y = \
+                get_regression_data(df, attrs, indices, idx, magic_number)
+        logging.debug(
+            "Training %s with %s instances." % (idx, train_x.shape[0]))
+
+        clf_ = clf(**models_params).fit(train_x, train_y)
+
+        df.loc[indices[idx + magic_number], clf_name] = clf_.predict(test_x)
+
+        idx += 1
+
+    df_trade = df.dropna(axis=0)
+
+    return df_trade
+
+
+@task(returns=dict)
+def run_model(clf, clf_name, model_params, df, prices, dataset_name, attrs,
+              magic_number, mode, k, top_thresh=0,
+              bot_thresh=0):
+    print("Trading with dataset: %s" % dataset_name)
+
+    df_trade = train(df, attrs, clf, clf_name, model_params, mode,
+                     magic_number)
+
+    portfolios = trade(df_trade, prices=prices,
+                       clf_name=clf_name, k=k,
+                       top_thresh=top_thresh,
+                       bot_thresh=bot_thresh)
+
+    return portfolios
+
+
+def explore_models(df, prices, dataset_name, attrs, save_path, magic_number=53,
+                   k=10):
     reg_classifiers = {'LR': LinearRegression, 'Lasso': Lasso, 'SVR': SVR,
                        'AdaBR': AdaBoostRegressor,
                        'DTR': DecisionTreeRegressor,
@@ -171,84 +213,19 @@ def run_model(df, prices, dataset_name, attrs, magic_number, k, top_thresh=0,
                        'DTC': DecisionTreeClassifier,
                        'RFC': RandomForestClassifier}
 
-    # magic number is by default 53, 52 weeks for training 1 for prediction
-    while idx + magic_number < len(indices) and indices[idx + magic_number] <= \
-            indices[-1]:
+    portfolios = defaultdict(list)
+    model_params = {}
 
-        # get regression datasets (target is float y -> ratio of increase)
-        train_x, train_y, test_x, test_y = get_regression_data(df, attrs,
-                                                               indices, idx,
-                                                               magic_number)
+    for clf_name, clf in reg_classifiers.items():
+        res = run_model(clf, clf_name, model_params, df, prices, dataset_name,
+                        attrs, magic_number, REGRESSION, k)
 
-        logging.debug(
-            "Training %s with %s instances." % (idx, train_x.shape[0]))
+        portfolios[clf_name].append((model_params, res))
 
-        for clf_name, model in reg_classifiers.items():
-            clf = model().fit(train_x, train_y)
+    for clf_name, clf in cat_classifiers.items():
+        res = run_model(clf, clf_name, model_params, df, prices, dataset_name,
+                        attrs, magic_number, CLASSIFICATION, k)
 
-            df.loc[indices[idx + magic_number], clf_name] = clf.predict(test_x)
-            accuracy = clf.score(test_x, test_y)
-
-            accuracies[clf_name].append(accuracy)
-
-        # get classification datasets (target is category [-1, 0, 1])
-        train_x, train_y, test_x, test_y = \
-            get_classification_data(df, attrs, indices, idx, magic_number)
-
-        for clf_name, model in cat_classifiers.items():
-            clf = model().fit(train_x, train_y)
-
-            df.loc[indices[idx + magic_number], clf_name] = clf.predict(test_x)
-            accuracy = clf.score(test_x, test_y)
-
-            accuracies[clf_name].append(accuracy)
-
-        idx += 1
-
-    df_trade = df.dropna(axis=0)
-
-    portfolios = {}
-
-    clfs = list(reg_classifiers.keys()) + list(cat_classifiers.keys())
-    for clf_name in clfs:
-        portfolios[clf_name] = trade(df_trade, prices=prices,
-                                     clf_name=clf_name, k=k,
-                                     top_thresh=top_thresh,
-                                     bot_thresh=bot_thresh)
+        portfolios[clf_name].append((model_params, res))
 
     return portfolios
-
-
-def explore_model(df, prices, dataset_name, attrs, save_path, magic_number=53, k=10):
-    return run_model(df, prices, dataset_name, attrs, magic_number, k)
-
-    # money, choices, accuracies = \
-    #     run_model(df, dataset_name, attrs, magic_number, k)
-    #
-    # money = compss_wait_on(money)
-    # choices = compss_wait_on(choices)
-    # accuracies = compss_wait_on(accuracies)
-    #
-    # # Convert choices strange dict to number of stock in portfolio per period
-    # choices_dict = {}
-    # df_aux = pd.DataFrame(columns=list(choices.keys()),
-    #                       index=pd.to_datetime([]))
-    # for clf_name in choices.keys():
-    #     for date_str, topk, botk in choices[clf_name]:
-    #         date_idx = pd.to_datetime(date_str, format=DATE_FORMAT)
-    #         df_aux.loc[date_idx, clf_name] = len(topk) + len(botk)
-    #
-    #         choices_dict = df_aux
-    #
-    # acc_df = pd.DataFrame(accuracies)
-    #
-    # save(items=choices_dict, filename='portfolio_size_%s' % dataset_name,
-    #      path=save_path)
-    # save(items=money, filename='returns_%s' % dataset_name, path=save_path)
-    # # save(items=acc_df, filename='accuracies_', path=save_path)
-    #
-    #
-    # for clf_name, returns in money.items():
-    #     print("%s,%s,%.3f,%.3f" % (
-    #         dataset_name, clf_name, np.mean(money[clf_name]),
-    #         money[clf_name][-1]))
