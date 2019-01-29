@@ -69,10 +69,10 @@ def get_fundamentals(symbols_list_name, start_year, end_year, resample_period):
     return df_fund
 
 
-@task(returns=pd.DataFrame)
+# @task(returns=pd.DataFrame)
 def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
     # TODO remove this once pyCOMPSs supports single-char parameters
-    symbol = symbol
+    symbol = symbol[:-1]
     print("Processing symbol [%s]" % symbol)
     ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]],
                    join='inner',
@@ -114,6 +114,10 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
                        symbol=symbol,
                        sic_info=sic_code[symbol],
                        sic_industry=sic_industry[symbol],
+                       # Graham screening
+                       revenue=ds.operatingrevenue,
+                       epsgrowth=ds.epsgrowth,
+                       bvps=ds.bookvaluepershare,
                        # Target
                        y=(df_prices.loc[symbol].price.shift(
                            1) / ds.price) - 1,
@@ -161,6 +165,22 @@ def post_process(df):
     return dfn, dfz, attrs
 
 
+@task(returns=1)
+def process_symbols(available_symbols, df_fund, df_prices, sic_code,
+                    sic_industry):
+    merged_dfs = []
+
+    for i, symbol in enumerate(available_symbols):
+        merged_dfs.append(process_symbol(symbol=symbol + '_', df_fund=df_fund,
+                                         df_prices=df_prices,
+                                         sic_code=sic_code,
+                                         sic_industry=sic_industry))
+
+    df = pd.concat(merged_dfs).sort_index()
+
+    return df
+
+
 def get_data(resample_period='1W', symbols_list_name='sp500',
              start_date='2006-01-01'):
     # while not decided imputation/removals
@@ -198,22 +218,13 @@ def get_data(resample_period='1W', symbols_list_name='sp500',
             try:
                 available_symbols.remove(s)
             except KeyError:
-                logging.debug("Couldn't remove symbol %s" % s)
+                print("Couldn't remove symbol %s" % s)
 
         with open(os.path.join(DATA_PATH, 'available_%s' % symbols_list_name),
                   'w') as f:
             f.write('\n'.join(available_symbols))
 
-    merged_dfs = [None] * len(available_symbols)
-
-    for i, symbol in enumerate(available_symbols):
-        merged_dfs[i] = process_symbol(symbol=symbol, df_fund=df_fund,
-                                       df_prices=df_prices, sic_code=sic_code,
-                                       sic_industry=sic_industry)
-
-    del df_fund, df_prices
-
-    df = (pd.concat(compss_wait_on(merged_dfs))
-          .sort_index())
+    df = process_symbols(available_symbols, df_fund, df_prices, sic_code,
+                         sic_industry)
 
     return post_process(df)

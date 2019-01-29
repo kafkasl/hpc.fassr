@@ -104,7 +104,7 @@ class FundamentalsCollector(object):
                             attr_names[statement].update(statement_dict.keys())
 
                         if retries == 0:
-                            logging.error(
+                            print(
                                 "Couldn't get data after 3 retries for url: %s" % url)
 
         if save:
@@ -153,7 +153,7 @@ class FundamentalsCollector(object):
                                 symbol_dict.update(statement_dict)
 
                         if retries == 0:
-                            logging.error(
+                            print(
                                 "Couldn't get data after 3 retries for url: %s" % url)
 
                     period_dict['{}{}'.format(year, quarter)] = symbol_dict
@@ -219,7 +219,7 @@ class FundamentalsCollector(object):
                 try:
                     series_financials_dict[symbol][period_key].update(period_dict)
                 except KeyError:
-                    logging.warning("No fundamental info for symbol %s in period %s" % (symbol, period_key))
+                    print("No fundamental info for symbol %s in period %s" % (symbol, period_key))
 
     @staticmethod
     def _get_attr2id(series_financials_dict: dict) -> dict:

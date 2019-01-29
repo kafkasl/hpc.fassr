@@ -71,30 +71,30 @@ def call_and_cache(url: str, cache=True) -> dict:
 
     data_json = {}
     if CACHE_ENABLED and os.path.exists(cached_file) and cache:
-        logging.debug(
+        print(
             "Data was present in cache and cache is enabled, loading: %s for %s" %
             (cached_file, url))
         with open(cached_file, 'r') as f:
             data_json = json.loads(f.read())
     else:
-        logging.info(
+        print(
             "Data was either not present in cache or it was disabled calling request: %s" % url)
         r = requests.get(url, auth=HTTPBasicAuth(intrinio_username,
                                                  intrinio_password))
 
         if r.status_code != 200:
-            logging.error(
+            print(
                 "Request status was: %s for URL: %s" % (r.status_code, url))
             return data_json
 
         data_json = json.loads(r.text)
 
         if 'data' in data_json.keys() and not len(data_json['data']) > 0:
-            logging.debug("Data field is empty.\nRequest URL: %s" % (url))
+            print("Data field is empty.\nRequest URL: %s" % (url))
 
         with open(cached_file, 'w') as f:
             f.write(json.dumps(data_json))
-            logging.debug(
+            print(
                 "Successfully cached url: %s to %s" % (url, cached_file))
 
     return data_json

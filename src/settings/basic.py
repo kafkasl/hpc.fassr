@@ -21,31 +21,21 @@ DATE_FORMAT = "%Y-%m-%d"
 # GRAHAM = {'year': 2017,
 #           'revenue_limit': int(1.5e9)}
 
-# Logger
-logFormatter = logging.Formatter(
-    "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
-rootLogger = logging.getLogger()
-
-log_file = os.path.join(LOG_PATH, "log.out")
-fileHandler = logging.FileHandler(log_file)
-fileHandler.setFormatter(logFormatter)
-rootLogger.addHandler(fileHandler)
-
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-rootLogger.addHandler(consoleHandler)
-rootLogger.setLevel(logging.INFO)
-
+# Logger DISABLED BECAUSE PYCOMPSS DOES NOT SUPPORT IT....
+# logFormatter = logging.Formatter(
+#     "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+# rootLogger = logging.getLogger()
 #
-# logging.basicConfig(level=logging.DEBUG,
-#                     format=' %(levelname)s: %(message)s',
-#                     stream=sys.stdout)
-# File logger
-# output = os.path.join(PROJECT_ROOT, "../../log/log.out")
-# logging.basicConfig(level=logging.DEBUG,
-#                     format='%(asctime)s %(levelname)s %(message)s',
-#                     filename=output,
-#                     filemode='w')
+# log_file = os.path.join(LOG_PATH, "log.out")
+# fileHandler = logging.FileHandler(log_file)
+# fileHandler.setFormatter(logFormatter)
+# rootLogger.addHandler(fileHandler)
+#
+# consoleHandler = logging.StreamHandler()
+# consoleHandler.setFormatter(logFormatter)
+# rootLogger.addHandler(consoleHandler)
+# rootLogger.setLevel(logging.INFO)
+
 
 
 # Intrinio API

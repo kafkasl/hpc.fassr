@@ -77,7 +77,7 @@ def get_sic_industry(code) -> int:
 def load_sic(symbols_list_name: str = 'sp500') -> dict:
     # sp500 contains dow30, so we just use sp500 sic info
     if not symbols_list_name in ['sp500', 'dow30']:
-        logging.warning(
+        print(
             'No sic information available for list %s' % symbols_list_name)
 
     sic_code = {}

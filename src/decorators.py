@@ -7,7 +7,7 @@ def nan_on_exception(func):
         try:
             res = func(*args, **kwargs)
         except Exception as e:
-            logging.debug("NaN on Exception [%s] computing: %s(%s, %s)" %
+            print("NaN on Exception [%s] computing: %s(%s, %s)" %
                           (e, func.__name__, args, kwargs))
         return res
     return wrapper

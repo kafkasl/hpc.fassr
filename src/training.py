@@ -1,17 +1,14 @@
 import os
 from collections import defaultdict
+from math import sqrt
 
 import matplotlib
+import pandas as pd
+from pycompss.api.api import compss_wait_on
 from pycompss.api.task import task
-from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, Lasso
-from sklearn.neural_network import MLPClassifier
-from sklearn.svm import SVC, SVR
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
+from models.classifiers import *
 from models.portfolio import Portfolio, Position
-from settings.basic import logging
 
 matplotlib.use('Agg')
 
@@ -21,7 +18,7 @@ CLASSIFICATION = 'CAT'
 
 def save(items, filename, path):
     file_path = os.path.join(path, filename)
-    logging.debug("Saving results %s to %s" % (filename, file_path))
+    print("Saving results %s to %s" % (filename, file_path))
 
     items.to_csv("%s.csv" % file_path)
     plot = items.plot(title=filename)
@@ -33,9 +30,83 @@ def get_share_price(prices, day, symbol):
     return prices.loc[(symbol, day)]
 
 
-def get_k_best(df_aux, clf_name, top_thresh, bot_thresh, k):
+def get_k_best(df_aux, clf_name, trading_params):
+    k = trading_params['k']
+    top_thresh = trading_params['top_thresh']
+    bot_thresh = trading_params['bot_thresh']
+
     botk = df_aux.iloc[0:k].query('%s<%s' % (clf_name, bot_thresh))
     topk = df_aux.iloc[-k - 1: -1].query('%s>%s' % (clf_name, top_thresh))
+
+    return topk, botk
+
+
+def get_k_random(df_trade, k):
+    chosen = df_trade.sample(n=2 * k)
+
+    topk, botk = chosen.iloc[:k], chosen.iloc[k:]
+    return topk, botk
+
+
+def graham_screening(df, day, k):
+
+    df_y = (df
+          .groupby('symbol')
+          .resample('1Y')
+          .ffill()
+          .drop('symbol', axis=1)
+          .reset_index()
+          .set_index('date')
+          .sort_index())
+
+    symbols = list(set(df.symbol))
+    screened_symbols = []
+    empty_df = pd.DataFrame(columns=df.columns)
+
+    for symbol in symbols:
+        df_aux = df.loc[:day].query('symbol=="%s"' % symbol)
+        # we have df with only yearly data to compute the last 10/20 years
+        # conditions
+        df_aux_y = df_y.loc[:day].query('symbol=="%s"' % symbol)
+
+        row_years = df_aux_y.shape[0]
+
+        if row_years == 0:
+            continue
+
+        succesful = True
+
+        try:
+            succesful &= df_aux.loc[day].revenue > 1500000000
+            succesful &= df_aux.loc[day].wc > 0
+            succesful &= (df_aux_y.eps > 0).sum() == row_years
+            succesful &= (df_aux_y.divpayoutratio > 0).sum() == row_years
+            succesful &= df_aux.loc[day].epsgrowth > 0.03
+
+            pt = sqrt(22.5 * df_aux.loc[day].p2e * df_aux.loc[day].bvps)
+
+            succesful &= df_aux.loc[day].price < pt
+
+        except KeyError as e:
+            print(e)
+            continue
+        except ValueError as e:
+            print(e)
+            continue
+        if succesful:
+            screened_symbols.append(symbol)
+
+    if len(screened_symbols) > 0:
+        chosen = df[df.symbol.isin(screened_symbols)]
+        # if len(screened_symbols) > 2 * k:
+        #     chosen = df[df.symbol.isin(screened_symbols)].sample(n=2 * k)
+        # else:
+        #     chosen = df[df.symbol.isin(screened_symbols)].sample(
+        #         n=len(screened_symbols))
+
+        topk, botk = chosen[['y', 'y', 'symbol']], empty_df
+    else:
+        topk, botk = empty_df, empty_df
 
     return topk, botk
 
@@ -63,7 +134,7 @@ def update_positions(prices, day, available_money, positions, botk, topk):
             available_money += p.sell(current_price)
 
     if botk.shape[0] > 0 or topk.shape[0] > 0:
-        # intially divide money equally among candidates
+        # initially divide money equally among candidates
         remaining_stocks = (botk.shape[0] + topk.shape[0])
 
         for (idx, y, pred, symbol) in topk.itertuples():
@@ -96,35 +167,6 @@ def update_positions(prices, day, available_money, positions, botk, topk):
             remaining_stocks -= 1
 
     return available_money, new_positions
-
-
-def trade(df_trade, prices, clf_name, k, top_thresh, bot_thresh):
-    indices = sorted(list(set(df_trade.index.values)))
-    df_clf = df_trade[['y', clf_name, 'symbol']]
-    logging.debug("Trading for %s" % clf_name)
-
-    portfolios = []
-
-    positions = []
-    stash = 1000
-
-    for day in indices:
-        # sort by predicted increment per stock of classifier clf_name
-        df_aux = df_clf.loc[[day]].sort_values(clf_name)
-
-        topk, botk = get_k_best(df_aux, clf_name, top_thresh, bot_thresh, k)
-
-        pf = Portfolio(day, cash=stash, positions=positions)
-
-        portfolios.append(pf)
-
-        old_positions = positions
-        old_stash = stash
-        stash, positions = update_positions(prices, day, old_stash,
-                                            old_positions,
-                                            botk, topk)
-
-    return portfolios
 
 
 def get_regression_data(df, attrs, indices, idx, magic_number):
@@ -171,8 +213,9 @@ def train(df, attrs, clf, clf_name, models_params, mode, magic_number):
             # get regression datasets (target is float y -> ratio of increase)
             train_x, train_y, test_x, test_y = \
                 get_regression_data(df, attrs, indices, idx, magic_number)
-        logging.debug(
-            "Training %s with %s instances." % (idx, train_x.shape[0]))
+        print(
+            "Training %s/%s with %s instances." % (
+                idx, len(indices), train_x.shape[0]))
 
         clf_ = clf(**models_params).fit(train_x, train_y)
 
@@ -182,50 +225,154 @@ def train(df, attrs, clf, clf_name, models_params, mode, magic_number):
 
     df_trade = df.dropna(axis=0)
 
+    print("Finished training for %s" % (clf_name))
     return df_trade
+
+
+def trade(df_trade, prices, clf_name, trading_params: dict):
+    indices = sorted(list(set(df_trade.index.values)))
+    df_clf = df_trade[['y', clf_name, 'symbol']]
+    print("Beginning trading for %s" % clf_name)
+
+    portfolios = []
+
+    positions = []
+    stash = 1000
+
+    for day in indices:
+        # sort by predicted increment per stock of classifier clf_name
+        df_aux = df_clf.loc[[day]].sort_values(clf_name)
+
+        topk, botk = get_k_best(df_aux, clf_name, trading_params)
+
+        pf = Portfolio(day, cash=stash, positions=positions)
+
+        portfolios.append(pf)
+
+        old_positions = positions
+        old_stash = stash
+        stash, positions = update_positions(prices, day, old_stash,
+                                            old_positions,
+                                            botk, topk)
+    print("Finished trading for %s" % clf_name)
+    return portfolios
+
+
+def random_trade(df_trade, prices, clf_name, trading_params: dict):
+    k = trading_params['k']
+
+    indices = sorted(list(set(df_trade.index.values)))
+    print("Monkey-Dart trading for %s" % clf_name)
+
+    portfolios = []
+
+    positions = []
+    stash = 1000
+
+    for day in indices:
+        topk, botk = get_k_random(df_trade, k)
+
+        pf = Portfolio(day, cash=stash, positions=positions)
+
+        portfolios.append(pf)
+
+        old_positions = positions
+        old_stash = stash
+        stash, positions = update_positions(prices, day, old_stash,
+                                            old_positions, botk, topk)
+
+    return portfolios
+
+
+def graham_trade(df, prices, clf_name, trading_params):
+    k = trading_params['k']
+
+    indices = sorted(list(set(df.index.values)))
+    print("Graham trading")
+
+    portfolios = []
+
+    positions = []
+    stash = 1000
+
+    for day in indices:
+        # we invest in all the ones passing the screening
+        topk, botk = graham_screening(df, day=day, k=k)
+
+        pf = Portfolio(day, cash=stash, positions=positions)
+
+        portfolios.append(pf)
+
+        old_positions = positions
+        old_stash = stash
+        stash, positions = update_positions(prices, day, old_stash,
+                                            old_positions, botk, topk)
+
+    return portfolios
 
 
 @task(returns=dict)
 def run_model(clf, clf_name, model_params, df, prices, dataset_name, attrs,
-              magic_number, mode, k, top_thresh=0,
-              bot_thresh=0):
-    print("Trading with dataset: %s" % dataset_name)
+              magic_number, mode, trading_params):
+    print("Running model with dataset: %s" % dataset_name)
 
     df_trade = train(df, attrs, clf, clf_name, model_params, mode,
                      magic_number)
 
     portfolios = trade(df_trade, prices=prices,
-                       clf_name=clf_name, k=k,
-                       top_thresh=top_thresh,
-                       bot_thresh=bot_thresh)
+                       clf_name=clf_name, trading_params=trading_params)
 
     return portfolios
 
 
-def explore_models(df, prices, dataset_name, attrs, save_path, magic_number=53,
-                   k=10):
-    reg_classifiers = {'LR': LinearRegression, 'Lasso': Lasso, 'SVR': SVR,
-                       'AdaBR': AdaBoostRegressor,
-                       'DTR': DecisionTreeRegressor,
-                       'RFR': RandomForestRegressor}
-    cat_classifiers = {'NN': MLPClassifier, 'SVM': SVC,
-                       'AdaBC': AdaBoostClassifier,
-                       'DTC': DecisionTreeClassifier,
-                       'RFC': RandomForestClassifier}
+@task(returns=dict)
+def run_random(clf, clf_name, model_params, df, prices, dataset_name, attrs,
+               magic_number, mode, trading_params):
+    print("Running random with dataset: %s" % dataset_name)
 
+    df_trade = train(df, attrs, clf, clf_name, model_params, mode,
+                     magic_number)
+
+    portfolios = trade(df_trade, prices=prices,
+                       clf_name=clf_name, trading_params=trading_params)
+
+    return portfolios
+
+
+@task(returns=dict)
+def run_baseline(clf, clf_name, model_params, df, prices, dataset_name, attrs,
+                 magic_number, mode, trading_params):
+    print("Running baseline with dataset: %s" % dataset_name)
+
+    res = graham_trade(df=df, prices=prices, clf_name=clf_name,
+                       trading_params=trading_params)
+
+    return res
+
+
+def explore_models(classifiers, df, prices, dataset_name, attrs, save_path,
+                   magic_number,
+                   trading_params):
     portfolios = defaultdict(list)
-    model_params = {}
 
-    for clf_name, clf in reg_classifiers.items():
-        res = run_model(clf, clf_name, model_params, df, prices, dataset_name,
-                        attrs, magic_number, REGRESSION, k)
+    for clf_name, (clf, model_params) in classifiers.items():
+        if clf_name in reg_classifiers.keys():
+            mode = REGRESSION
+            run = run_model
+        elif clf_name in cat_classifiers.keys():
+            mode = CLASSIFICATION
+            run = run_model
+        elif clf_name == 'random':
+            mode = REGRESSION
+            run = run_random
+        else:
+            run = run_baseline
+            mode = REGRESSION
 
-        portfolios[clf_name].append((model_params, res))
+        res = run(clf, clf_name, model_params, df, prices, dataset_name, attrs,
+                  magic_number, mode, trading_params)
 
-    for clf_name, clf in cat_classifiers.items():
-        res = run_model(clf, clf_name, model_params, df, prices, dataset_name,
-                        attrs, magic_number, CLASSIFICATION, k)
+        portfolios[clf_name].append((model_params, trading_params, res))
 
-        portfolios[clf_name].append((model_params, res))
 
     return portfolios
