@@ -3,17 +3,19 @@ from collections import defaultdict
 from math import sqrt
 
 import matplotlib
+import numpy as np
 import pandas as pd
-from pycompss.api.api import compss_wait_on
 from pycompss.api.task import task
 
 from models.classifiers import *
 from models.portfolio import Portfolio, Position
+from utils import full_print
 
 matplotlib.use('Agg')
 
 REGRESSION = 'REG'
 CLASSIFICATION = 'CAT'
+final_date = np.datetime64('2018-10-18')
 
 
 def save(items, filename, path):
@@ -27,7 +29,14 @@ def save(items, filename, path):
 
 
 def get_share_price(prices, day, symbol):
-    return prices.loc[(symbol, day)]
+    try:
+        price = prices.loc(axis=0)[(symbol, day)]
+        return price
+    except Exception as e:
+        print("Exception: [%s] for key (%s, %s)" % (e, day, symbol))
+        print("Prices:")
+        full_print(prices)
+        raise Exception(e)
 
 
 def get_k_best(df_aux, clf_name, trading_params):
@@ -42,32 +51,32 @@ def get_k_best(df_aux, clf_name, trading_params):
 
 
 def get_k_random(df_trade, k):
-    chosen = df_trade.sample(n=2 * k)
 
-    topk, botk = chosen.iloc[:k], chosen.iloc[k:]
+    sample_size = min(len(df_trade), k)
+    topk = df_trade.sample(n=sample_size)
+    botk = df_trade.sample(n=sample_size)
     return topk, botk
 
 
 def graham_screening(df, day, k):
-
     df_y = (df
-          .groupby('symbol')
-          .resample('1Y')
-          .ffill()
-          .drop('symbol', axis=1)
-          .reset_index()
-          .set_index('date')
-          .sort_index())
+            .groupby('symbol')
+            .resample('1Y')
+            .ffill()
+            .drop('symbol', axis=1)
+            .reset_index()
+            .set_index('date')
+            .sort_index())
 
     symbols = list(set(df.symbol))
     screened_symbols = []
     empty_df = pd.DataFrame(columns=df.columns)
 
     for symbol in symbols:
-        df_aux = df.loc[:day].query('symbol=="%s"' % symbol)
+        df_aux = df.loc[:day+1].query('symbol=="%s"' % symbol)
         # we have df with only yearly data to compute the last 10/20 years
         # conditions
-        df_aux_y = df_y.loc[:day].query('symbol=="%s"' % symbol)
+        df_aux_y = df_y.loc[:day+1].query('symbol=="%s"' % symbol)
 
         row_years = df_aux_y.shape[0]
 
@@ -77,27 +86,33 @@ def graham_screening(df, day, k):
         succesful = True
 
         try:
-            succesful &= df_aux.loc[day].revenue > 1500000000
-            succesful &= df_aux.loc[day].wc > 0
-            succesful &= (df_aux_y.eps > 0).sum() == row_years
-            succesful &= (df_aux_y.divpayoutratio > 0).sum() == row_years
-            succesful &= df_aux.loc[day].epsgrowth > 0.03
-
-            pt = sqrt(22.5 * df_aux.loc[day].p2e * df_aux.loc[day].bvps)
-
-            succesful &= df_aux.loc[day].price < pt
-
+            day_info = df_aux.loc[day]
         except KeyError as e:
-            print(e)
+            print("Day [%s] for symbol %s not found in indices: %s" % (day, symbol, df.query('symbol=="%s"' % symbol).index.values))
+            # full_print(df_aux)
             continue
+        succesful &= day_info.revenue > 1500000000
+        succesful &= day_info.wc > 0
+        succesful &= (df_aux_y.eps > 0).sum() == row_years
+        succesful &= (df_aux_y.divpayoutratio > 0).sum() == row_years
+        succesful &= day_info.epsgrowth > 0.03
+
+        try:
+            pt = sqrt(22.5 * df_aux.loc[day].p2e * df_aux.loc[day].bvps)
+            succesful &= df_aux.loc[day].price < pt
         except ValueError as e:
-            print(e)
+            print("Negative graham value: %s" % (
+                22.5 * df_aux.loc[day].p2e * df_aux.loc[day].bvps))
             continue
+
         if succesful:
+            print("Screened symbols: %s" % screened_symbols)
             screened_symbols.append(symbol)
 
     if len(screened_symbols) > 0:
-        chosen = df[df.symbol.isin(screened_symbols)]
+        chosen = df.loc[day].query('symbol in @screened_symbols')
+        sample_size = min(2*k, len(chosen))
+        chosen = chosen.sample(n=sample_size)
         # if len(screened_symbols) > 2 * k:
         #     chosen = df[df.symbol.isin(screened_symbols)].sample(n=2 * k)
         # else:
@@ -230,7 +245,8 @@ def train(df, attrs, clf, clf_name, models_params, mode, magic_number):
 
 
 def trade(df_trade, prices, clf_name, trading_params: dict):
-    indices = sorted(list(set(df_trade.index.values)))
+    indices = sorted(
+        [day for day in list(set(df_trade.index.values)) if day <= final_date])
     df_clf = df_trade[['y', clf_name, 'symbol']]
     print("Beginning trading for %s" % clf_name)
 
@@ -261,7 +277,8 @@ def trade(df_trade, prices, clf_name, trading_params: dict):
 def random_trade(df_trade, prices, clf_name, trading_params: dict):
     k = trading_params['k']
 
-    indices = sorted(list(set(df_trade.index.values)))
+    indices = sorted(
+        [day for day in list(set(df_trade.index.values)) if day <= final_date])
     print("Monkey-Dart trading for %s" % clf_name)
 
     portfolios = []
@@ -271,6 +288,7 @@ def random_trade(df_trade, prices, clf_name, trading_params: dict):
 
     for day in indices:
         topk, botk = get_k_random(df_trade, k)
+        print("Random getting topk, botk = %s, %s" % (len(topk), len(botk)))
 
         pf = Portfolio(day, cash=stash, positions=positions)
 
@@ -287,7 +305,8 @@ def random_trade(df_trade, prices, clf_name, trading_params: dict):
 def graham_trade(df, prices, clf_name, trading_params):
     k = trading_params['k']
 
-    indices = sorted(list(set(df.index.values)))
+    indices = sorted(
+        [day for day in list(set(df.index.values)) if day <= final_date])
     print("Graham trading")
 
     portfolios = []
@@ -333,6 +352,8 @@ def run_random(clf, clf_name, model_params, df, prices, dataset_name, attrs,
     df_trade = train(df, attrs, clf, clf_name, model_params, mode,
                      magic_number)
 
+    print("DF trade:")
+    full_print(df_trade)
     portfolios = trade(df_trade, prices=prices,
                        clf_name=clf_name, trading_params=trading_params)
 
@@ -343,6 +364,8 @@ def run_random(clf, clf_name, model_params, df, prices, dataset_name, attrs,
 def run_baseline(clf, clf_name, model_params, df, prices, dataset_name, attrs,
                  magic_number, mode, trading_params):
     print("Running baseline with dataset: %s" % dataset_name)
+
+    print("Columns: %s" % df.columns)
 
     res = graham_trade(df=df, prices=prices, clf_name=clf_name,
                        trading_params=trading_params)
@@ -373,6 +396,5 @@ def explore_models(classifiers, df, prices, dataset_name, attrs, save_path,
                   magic_number, mode, trading_params)
 
         portfolios[clf_name].append((model_params, trading_params, res))
-
 
     return portfolios

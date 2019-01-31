@@ -1,4 +1,3 @@
-import logging
 import os
 
 import numpy as np
@@ -26,6 +25,8 @@ def get_prices(symbols_list_name, start_date='2006-01-01',
 
 def _get_prices(symbols_list_name, start_date='2006-01-01',
                 resample_period='1W'):
+    print("Loading prices for %s [%s - end] %s" % (
+        symbols_list_name, start_date, resample_period))
     df_prices = PriceExtractor(symbols_list_name=symbols_list_name,
                                start_date=start_date).collect()
 
@@ -45,6 +46,8 @@ def _get_prices(symbols_list_name, start_date='2006-01-01',
 
 @task(returns=pd.DataFrame)
 def get_fundamentals(symbols_list_name, start_year, end_year, resample_period):
+    print("Loading fundamentals for %s [%s - %s] %s" % (
+        symbols_list_name, start_year, end_year, resample_period))
     df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
                                     start_year=start_year,
                                     end_year=end_year).collect()
@@ -132,11 +135,12 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
 @task(returns=3)
 def post_process(df):
     # TODO:  there is a paper where they said how to build the survivor bias list
+    # TODO: check if adding 'revenue', 'epsgrowth', 'bvps' helps or not.
     attrs = ['eps', 'p2b', 'p2e', 'p2r', 'div2price',
              'divpayoutratio', 'roe', 'roic', 'roa', 'assetturnover',
-             'invturnonver',
-             'profitmargin', 'debtratio', 'ebittointerestex', 'wc', 'wc2a',
-             'currentratio']
+             'invturnonver', 'profitmargin', 'debtratio', 'ebittointerestex',
+             'wc', 'wc2a', 'currentratio']
+    # 'revenue', 'epsgrowth', 'bvps']
 
     print("Adding z-scores...")
     # for tag in desired_tags:

@@ -8,9 +8,9 @@ import pandas as pd
 import requests
 from requests.auth import HTTPBasicAuth
 
-from settings.basic import (logging, CACHE_ENABLED, CACHE_PATH, DATA_PATH,
+from settings.basic import (CACHE_ENABLED, CACHE_PATH, DATA_PATH,
                             intrinio_username,
-                            intrinio_password)
+                            intrinio_password, debug)
 
 
 def full_print(res):
@@ -71,9 +71,10 @@ def call_and_cache(url: str, cache=True) -> dict:
 
     data_json = {}
     if CACHE_ENABLED and os.path.exists(cached_file) and cache:
-        print(
-            "Data was present in cache and cache is enabled, loading: %s for %s" %
-            (cached_file, url))
+        if debug:
+            print(
+                "Data was present in cache and cache is enabled, loading: %s for %s" %
+                (cached_file, url))
         with open(cached_file, 'r') as f:
             data_json = json.loads(f.read())
     else:

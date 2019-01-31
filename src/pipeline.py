@@ -33,17 +33,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # datasets = ['normal', 'z-score']
-    resample_periods = ['3M']
     symbols_list_name = 'dow30'
-    magic_number = 13
+    # resample_periods = ['Q']
+    # magic_number = 13
     trading_params = [{'k': 10, 'bot_thresh': 0, 'top_thresh': 0}]
+    period_params = [('1Q', 7)]
     classifiers = debug_classifiers
     save_path = args.save_path
 
     if not args.debug:
-        resample_periods = ['1W', '2W', '1M', '3M']
+        # period_params = [('1W', 53), ('1SM', 27), ('1BM', 14), ('1Q', 7)]
+        period_params = [('1Q', 7)]
         symbols_list_name = 'sp500'
-        magic_number = 53
         trading_params = get_trading_params([10])
         classifiers = debug_classifiers
 
@@ -52,18 +53,25 @@ if __name__ == '__main__':
     prices = get_prices(symbols_list_name='sp500',
                         resample_period='1D', only_prices=True)
 
-    for resample_period in resample_periods:
+    for resample_period, magic_number in period_params:
         dfn, dfz, attrs = get_data(resample_period=resample_period,
                                    symbols_list_name=symbols_list_name)
 
         datasets = {'normal': dfn, 'z-score': dfz}
 
+        clfs = classifiers
+
         for d_key in datasets.keys():
+
+            if d_key != 'normal':
+                clfs = {key: val for key, val in clfs.items() if
+                            key != 'random' and key != 'graham'}
+
             for params in trading_params:
                 df = datasets[d_key]
 
                 dataset_name = '%s_%s' % (d_key, resample_period)
-                portfolios = explore_models(classifiers=classifiers,
+                portfolios = explore_models(classifiers=clfs,
                                             df=df, prices=prices,
                                             dataset_name=dataset_name,
                                             attrs=attrs,

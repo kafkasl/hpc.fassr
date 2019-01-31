@@ -35,7 +35,7 @@ DATE_FORMAT = "%Y-%m-%d"
 # consoleHandler.setFormatter(logFormatter)
 # rootLogger.addHandler(consoleHandler)
 # rootLogger.setLevel(logging.INFO)
-
+debug = False
 
 
 # Intrinio API
