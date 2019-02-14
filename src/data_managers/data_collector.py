@@ -8,6 +8,7 @@ from pycompss.api.task import task
 from data_managers.fundamentals_extraction import FundamentalsCollector
 from data_managers.price_extraction import PriceExtractor
 from data_managers.sic import load_sic
+from models.classifiers import train_attrs as attrs
 from settings.basic import DATE_FORMAT, DATA_PATH
 from utils import load_symbol_list
 
@@ -132,15 +133,10 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
     return df_tidy
 
 
-@task(returns=3)
+@task(returns=2)
 def post_process(df):
     # TODO:  there is a paper where they said how to build the survivor bias list
-    # TODO: check if adding 'revenue', 'epsgrowth', 'bvps' helps or not.
-    attrs = ['eps', 'p2b', 'p2e', 'p2r', 'div2price',
-             'divpayoutratio', 'roe', 'roic', 'roa', 'assetturnover',
-             'invturnonver', 'profitmargin', 'debtratio', 'ebittointerestex',
-             'wc', 'wc2a', 'currentratio']
-    # 'revenue', 'epsgrowth', 'bvps']
+
 
     print("Adding z-scores...")
     # for tag in desired_tags:
@@ -166,7 +162,7 @@ def post_process(df):
            .reset_index().set_index('date'))
     dfz = dfz.dropna(axis=0).reset_index().set_index('date')
 
-    return dfn, dfz, attrs
+    return dfn, dfz
 
 
 @task(returns=1)
@@ -231,4 +227,6 @@ def get_data(resample_period='1W', symbols_list_name='sp500',
     df = process_symbols(available_symbols, df_fund, df_prices, sic_code,
                          sic_industry)
 
-    return post_process(df)
+    res = post_process(df)
+
+    return res

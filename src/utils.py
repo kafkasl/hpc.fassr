@@ -4,6 +4,7 @@ import os
 import pickle
 from urllib.parse import urlparse
 
+import numpy as np
 import pandas as pd
 import requests
 from requests.auth import HTTPBasicAuth
@@ -11,6 +12,29 @@ from requests.auth import HTTPBasicAuth
 from settings.basic import (CACHE_ENABLED, CACHE_PATH, DATA_PATH,
                             intrinio_username,
                             intrinio_password, debug)
+
+
+def dict_to_str(dct):
+    return ' '.join(['%s:%s' % (k, v) for k, v in dct.items()])
+
+
+def get_headers(trading_params):
+    header = 'dataset,period,clf,magic,model_params,'
+    header += ','.join([k for k in trading_params.keys()]) + ','
+    header += 'min,max,mean,last'
+
+    return header
+
+
+def format_line(dataset_name, clf, magic, trading_params, model_params, pfs):
+    r = [p.total_money for p in pfs]
+    line = '%s,%s,%s,%s,%s' % (
+        dataset_name.split('_')[0], dataset_name.split('_')[1], clf, magic,
+        dict_to_str(model_params))
+    line += ','.join([str(v) for v in trading_params.values()]) + ','
+    line += '%.1f,%.1f,%.1f,%.1f' % (np.min(r), np.max(r), np.mean(r), r[-1])
+
+    return line
 
 
 def full_print(res):
