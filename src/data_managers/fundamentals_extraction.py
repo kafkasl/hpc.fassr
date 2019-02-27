@@ -15,8 +15,11 @@ from utils import call_and_cache, save_obj, load_symbol_list
 
 
 class FundamentalsCollector(object):
-    def __init__(self, symbols_list_name: str, start_year: int, end_year: int,
+    def __init__(self, symbols_list_name: str, start_date: int, end_date: int,
                  cache: bool = CACHE_ENABLED, reuse_csv: bool = True):
+
+        start_year = int(start_date[0:4])
+        end_year = int(end_date[0:4])
 
         self.symbols_list_name = symbols_list_name
         self.start_year = start_year
@@ -295,5 +298,5 @@ if __name__ == '__main__':
     end_year = 2019
 
     df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
-                                    start_year=start_year,
-                                    end_year=end_year, cache=True, reuse_csv=False).collect()
+                                    start_date=start_year, end_date=end_year,
+                                    cache=True, reuse_csv=False).collect()

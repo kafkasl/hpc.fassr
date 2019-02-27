@@ -21,17 +21,18 @@ def dict_to_str(dct):
 def get_headers(trading_params):
     header = 'dataset,period,clf,magic,model_params,'
     header += ','.join([k for k in trading_params.keys()]) + ','
-    header += 'min,max,mean,last'
+    header += 'time,min,max,mean,last'
 
     return header
 
 
-def format_line(dataset_name, clf, magic, trading_params, model_params, pfs):
+def format_line(dataset_name, clf, magic, trading_params, model_params, pfs, total_time):
     r = [p.total_money for p in pfs]
-    line = '%s,%s,%s,%s,%s' % (
+    line = '%s,%s,%s,%s,%s,' % (
         dataset_name.split('_')[0], dataset_name.split('_')[1], clf, magic,
         dict_to_str(model_params))
     line += ','.join([str(v) for v in trading_params.values()]) + ','
+    line += '%.2f,' % total_time
     line += '%.1f,%.1f,%.1f,%.1f' % (np.min(r), np.max(r), np.mean(r), r[-1])
 
     return line
@@ -123,3 +124,16 @@ def call_and_cache(url: str, cache=True) -> dict:
                 "Successfully cached url: %s to %s" % (url, cached_file))
 
     return data_json
+
+
+def plot_2_axis():
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    x, y = np.random.random((2, 50))
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax1.scatter(df['last'], df.C, c='b')
+    ax2.scatter(df['last'], df.gamma, c='r')
+    ax1.set_yscale('log')
+    ax2.set_yscale('log')

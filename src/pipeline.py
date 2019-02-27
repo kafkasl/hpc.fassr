@@ -4,6 +4,7 @@ import os
 from time import time
 
 from pycompss.api.api import compss_wait_on
+from models.classifiers import train_attrs as attrs
 
 from data_managers.data_collector import get_data, get_prices
 from models.classifiers import *
@@ -54,7 +55,7 @@ if __name__ == '__main__':
                         resample_period='1D', only_prices=True)
 
     for resample_period, magic_number in period_params:
-        dfn, dfz, attrs = get_data(resample_period=resample_period,
+        dfn, dfz = get_data(resample_period=resample_period,
                                    symbols_list_name=symbols_list_name)
 
         datasets = {'normal': dfn, 'z-score': dfz}

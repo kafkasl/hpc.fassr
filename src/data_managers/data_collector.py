@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -10,18 +11,34 @@ from data_managers.price_extraction import PriceExtractor
 from data_managers.sic import load_sic
 from models.classifiers import train_attrs as attrs
 from settings.basic import DATE_FORMAT, DATA_PATH
-from utils import load_symbol_list
+from utils import load_symbol_list, save_obj
+
+try:
+    import pyextrae.multiprocessing as pyextrae
+
+    tracing = True
+except:
+    tracing = False
 
 
 @task(returns=pd.DataFrame)
 def get_prices(symbols_list_name, start_date='2006-01-01',
                resample_period='1W', only_prices=False):
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
+
     prices = _get_prices(symbols_list_name, start_date, resample_period)
 
     if only_prices:
-        return prices.price
+        res = prices.price
     else:
-        return prices
+        res = prices
+
+    if tracing:
+        sys.setprofile(pro_f)
+
+    return res
 
 
 def _get_prices(symbols_list_name, start_date='2006-01-01',
@@ -46,12 +63,16 @@ def _get_prices(symbols_list_name, start_date='2006-01-01',
 
 
 @task(returns=pd.DataFrame)
-def get_fundamentals(symbols_list_name, start_year, end_year, resample_period):
+def get_fundamentals(symbols_list_name, start_date, end_date, resample_period):
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
+
     print("Loading fundamentals for %s [%s - %s] %s" % (
-        symbols_list_name, start_year, end_year, resample_period))
+        symbols_list_name, start_date, end_date, resample_period))
     df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
-                                    start_year=start_year,
-                                    end_year=end_year).collect()
+                                    start_date=start_date,
+                                    end_date=end_date).collect()
     # TODO: drop_duplicates an incorrect value from intrinio
     df_fund = (df_fund
         .drop_duplicates(['date', 'symbol'], keep='first')
@@ -70,20 +91,27 @@ def get_fundamentals(symbols_list_name, start_year, end_year, resample_period):
          df_fund.columns],
         axis=1)
 
+    if tracing:
+        sys.setprofile(pro_f)
+
     return df_fund
 
 
 # @task(returns=pd.DataFrame)
-def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
+def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry,
+                   thresholds, target_shift):
     # TODO remove this once pyCOMPSs supports single-char parameters
     symbol = symbol[:-1]
+    bot_thresh, top_thresh = thresholds
     print("Processing symbol [%s]" % symbol)
     ds = pd.concat([df_fund.loc[symbol], df_prices.loc[symbol]],
                    join='inner',
                    axis=1)
 
     bins = pd.IntervalIndex.from_tuples(
-        [(-np.inf, -0.015), (-0.015, 0.015), (0.015, np.inf)])
+        [(-np.inf, bot_thresh), (bot_thresh, top_thresh),
+         (top_thresh, np.inf)])
+
     df_tidy = (pd.DataFrame()
                .assign(eps=ds.basiceps,
                        price=ds.price,
@@ -98,7 +126,6 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
                        roe=ds.roe,
                        roic=ds.roic,
                        roa=ds.roa,
-                       # eva= ???,
                        # Efficiency measures
                        assetturnover=ds.assetturnover,
                        invturnonver=ds.invturnover,
@@ -124,9 +151,8 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
                        bvps=ds.bookvaluepershare,
                        # Target
                        y=(df_prices.loc[symbol].price.shift(
-                           1) / ds.price) - 1,
+                           target_shift) / ds.price) - 1,
                        positions=lambda r: pd.cut(r.y, bins).cat.codes - 1,
-                       next_price=df_prices.loc[symbol].price.shift(1)
                        )
                .set_index('symbol', append=True))
 
@@ -134,9 +160,11 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry):
 
 
 @task(returns=2)
-def post_process(df):
+def post_process(df, files):
     # TODO:  there is a paper where they said how to build the survivor bias list
-
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
 
     print("Adding z-scores...")
     # for tag in desired_tags:
@@ -157,46 +185,61 @@ def post_process(df):
     # Drop the NaN
     # We drop now, because doing it prior to z-scores loses info.
     dfn = (dfn.dropna(axis=0)
-           .replace(float('inf'), np.finfo(np.float32).max)
-           .replace(-float('inf'), np.finfo(np.float32).min)
+           .replace(float('inf'), np.finfo(np.float16).max)
+           .replace(-float('inf'), np.finfo(np.float16).min)
            .reset_index().set_index('date'))
     dfz = dfz.dropna(axis=0).reset_index().set_index('date')
+
+    save_obj(dfn, files[0])
+    save_obj(dfz, files[1])
+
+    if tracing:
+        sys.setprofile(pro_f)
 
     return dfn, dfz
 
 
 @task(returns=1)
 def process_symbols(available_symbols, df_fund, df_prices, sic_code,
-                    sic_industry):
+                    sic_industry, thresholds, target_shift):
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
+
     merged_dfs = []
 
     for i, symbol in enumerate(available_symbols):
         merged_dfs.append(process_symbol(symbol=symbol + '_', df_fund=df_fund,
                                          df_prices=df_prices,
                                          sic_code=sic_code,
-                                         sic_industry=sic_industry))
+                                         sic_industry=sic_industry,
+                                         thresholds=thresholds,
+                                         target_shift=target_shift))
 
     df = pd.concat(merged_dfs).sort_index()
+
+    if tracing:
+        sys.setprofile(pro_f)
 
     return df
 
 
-def get_data(resample_period='1W', symbols_list_name='sp500',
-             start_date='2006-01-01'):
+def get_data(thresholds, resample_period='1W', symbols_list_name='sp500',
+             start_date='2006-01-01', target_shift=4):
+    print("Getting data for: %s - %s from %s with thresholds %s" % (
+        symbols_list_name, resample_period, start_date, list(thresholds)))
+
     # while not decided imputation/removals
     symbols = load_symbol_list(symbols_list_name)
     end_date = '2019-12-31'
-
-    start_year = int(start_date[0:4])
-    end_year = int(end_date[0:4])
 
     df_prices = get_prices(symbols_list_name=symbols_list_name,
                            start_date=start_date,
                            resample_period=resample_period)
 
     df_fund = get_fundamentals(symbols_list_name=symbols_list_name,
-                               start_year=start_year,
-                               end_year=end_year,
+                               start_date=start_date,
+                               end_date=end_date,
                                resample_period=resample_period)
 
     sic_code, sic_industry = load_sic(symbols_list_name=symbols_list_name)
@@ -225,8 +268,16 @@ def get_data(resample_period='1W', symbols_list_name='sp500',
             f.write('\n'.join(available_symbols))
 
     df = process_symbols(available_symbols, df_fund, df_prices, sic_code,
-                         sic_industry)
+                         sic_industry, thresholds, target_shift)
 
-    res = post_process(df)
+    normal_name = "normal_%s_%s_%s" % (
+        resample_period, thresholds[0], thresholds[1])
+    z_name = "z-score_%s_%s_%s" % (
+        resample_period, thresholds[0], thresholds[1])
+
+    normal_file = os.path.join(DATA_PATH, normal_name)
+    z_file = os.path.join(DATA_PATH, z_name)
+
+    res = post_process(df, (normal_file, z_file))
 
     return res

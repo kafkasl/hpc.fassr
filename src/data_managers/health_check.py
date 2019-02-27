@@ -87,6 +87,17 @@ if __name__ == '__main__':
 
 
 
+def check_indices(df):
+    print(set(df.index.values))
+
+
+def stocks_per_index(df):
+    indices = sorted(set(df.index.values))
+    sizes = [df.loc[idx].shape[0] for idx in indices]
+    stats = pd.DataFrame(data=sizes, index=indices, columns=['# stocks'])
+
+    return stats
+
 # THIS WAS ORIGINALLY IN merger_.py BUT WAS DEEMED IRRELEVANT
 
 # THIS ARE ALL HEALTH CHECKS for the data not relevant.

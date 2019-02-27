@@ -28,8 +28,8 @@ df_prices = PriceExtractor(symbols_list_name=symbols_list_name,
                            start_date=start_date).collect()
 
 df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
-                                start_year=start_year,
-                                end_year=end_year).collect()
+                                start_date=start_year,
+                                end_date=end_year).collect()
 
 sic_code, sic_industry = load_sic(symbols_list_name)
 

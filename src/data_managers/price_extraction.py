@@ -1,7 +1,7 @@
 from string import Template
-
 import pandas as pd
 
+from settings.basic import DATE_FORMAT
 from utils import call_and_cache, load_symbol_list
 
 
@@ -13,10 +13,11 @@ class PriceExtractor(object):
                                "frequency=daily&sort_order=asc")
 
     def __init__(self, symbols_list_name: str = 'dow30',
-                 start_date='2006-01-01'):
+                 start_date='2006-01-01', end_date='2019-01-01'):
 
         self.symbols_list_name = symbols_list_name
         self.start_date = start_date
+        self.end_date = end_date
 
     @staticmethod
     def _prices_to_list(data: list):
@@ -66,6 +67,7 @@ class PriceExtractor(object):
             dfs.append(
                 self._get_symbol_prices(symbol=symbol))
 
+
         return pd.concat(dfs)
 
 
@@ -73,5 +75,32 @@ if __name__ == "__main__":
     symbols_list_name = 'sp500'
     start_date = '2006-01-01'
 
-    df = PriceExtractor(symbols_list_name=symbols_list_name,
-                        start_date=start_date).collect()
+    # df = PriceExtractor(symbols_list_name=symbols_list_name,
+    #                     start_date=start_date).collect()
+
+    import numpy as np
+    import fix_yahoo_finance as yf
+
+    symbols = load_symbol_list(symbols_list_name)
+    end_date = '2018-12-31'
+
+    dfs = []
+    for s in symbols:
+        try:
+            data = yf.download(s, start_date, end_date)
+            df = (data
+                  .assign(symbol=s)[['Adj Close', 'symbol']]
+                  .rename(index=str, columns={'Adj Close': 'price'}))
+            dfs.append(df)
+        except ValueError as e:
+            print(e)
+            print("Exception downloading: %s" % s)
+
+    pzs = (pd.concat(dfs)
+           .reset_index()
+           .assign(date=lambda r: pd.to_datetime(r.Date, format=DATE_FORMAT))
+           .set_index('date')
+           .groupby('symbol')
+           .resample('1D')
+           .ffill()
+           .sort_index())

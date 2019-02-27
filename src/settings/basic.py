@@ -1,6 +1,7 @@
 import os
 import logging
 import sys
+import socket
 
 # Paths configuration
 SETTINGS_FOLDER = os.path.dirname(os.path.abspath(__file__))
@@ -44,5 +45,11 @@ intrinio_password = 'c4daefffaf7ea875949468c0db69d256'
 
 # Cache config
 CACHE_ENABLED = True
-CACHE_PATH = os.path.join(PROJECT_ROOT, "cache")
-INTRINIO_CACHE_PATH = os.path.join(CACHE_PATH, "intrinio")
+
+if socket.gethostname() == 'Marginis':
+    CACHE_PATH = os.path.join(PROJECT_ROOT, "cache")
+    INTRINIO_CACHE_PATH = os.path.join(CACHE_PATH, "intrinio")
+
+else:  # we are in MN4
+    CACHE_PATH = "/gpfs/scratch/bsc19/compss/COMPSs_Sandbox/bsc19277/ydra/cache"
+    INTRINIO_CACHE_PATH = os.path.join(CACHE_PATH, "intrinio")
