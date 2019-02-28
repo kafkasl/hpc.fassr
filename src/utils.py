@@ -1,4 +1,5 @@
 import base64
+import gzip
 import json
 import os
 import pickle
@@ -18,6 +19,18 @@ def dict_to_str(dct):
     return ' '.join(['%s:%s' % (k, v) for k, v in dct.items()])
 
 
+def get_datasets_name(resample_period, symbols_list_name, thresholds,
+                      target_shift):
+    normal_name = "normal_%s_%s_%s_%s_y%s" % (
+        resample_period, symbols_list_name, thresholds[0],
+        thresholds[1],
+        target_shift)
+    z_name = "z-score_%s_%s_%s_%s_y%s" % (
+        resample_period, symbols_list_name, thresholds[0], thresholds[1],
+        target_shift)
+    return normal_name, z_name
+
+
 def get_headers(trading_params):
     header = 'dataset,period,clf,magic,model_params,'
     header += ','.join([k for k in trading_params.keys()]) + ','
@@ -26,7 +39,8 @@ def get_headers(trading_params):
     return header
 
 
-def format_line(dataset_name, clf, magic, trading_params, model_params, pfs, total_time):
+def format_line(dataset_name, clf, magic, trading_params, model_params, pfs,
+                total_time):
     r = [p.total_money for p in pfs]
     line = '%s,%s,%s,%s,%s,' % (
         dataset_name.split('_')[0], dataset_name.split('_')[1], clf, magic,
@@ -44,13 +58,17 @@ def full_print(res):
         print(res)
 
 
+def exists_obj(name):
+    return os.path.exists(name + '.pgz')
+
+
 def save_obj(obj, name):
-    with open(name + '.pkl', 'wb') as f:
+    with gzip.GzipFile(name + '.pgz', 'w') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 
 def load_obj(name):
-    with open(name + '.pkl', 'rb') as f:
+    with gzip.GzipFile(name + '.pgz', 'r') as f:
         return pickle.load(f)
 
 

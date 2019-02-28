@@ -1,5 +1,6 @@
 from math import sqrt
 
+import numpy as np
 import pandas as pd
 
 from models.portfolio import Portfolio, Position
@@ -7,6 +8,16 @@ from models.portfolio import Portfolio, Position
 
 def get_share_price(prices, day, symbol):
     return prices.loc(axis=0)[(symbol, day)]
+
+
+def debug_selector(df_trade, day, clf_name, trading_params):
+    return df_trade.loc[[day]].query('symbol=="EIX"')[
+               ['y', 'y', 'symbol', 'price']], \
+           df_trade.loc[[day]].query('symbol=="OKE"')[
+               ['y', 'y', 'symbol', 'price']]
+    # return df_trade.loc[[day]].query('symbol=="EIX"')[
+    #            ['y', 'y', 'symbol', 'price']], df_trade.loc[
+    #            [day]].query('symbol=="NONE"')
 
 
 def get_k_best(df_trade, day, clf_name, trading_params):
@@ -32,45 +43,6 @@ def get_k_random(df_trade, day, clf_name, trading_params):
     topk = df_trade.sample(n=sample_size)
     botk = df_trade.sample(n=sample_size)
     return topk, botk
-
-
-def model_trade(df_trade, prices, clf_name, trading_params: dict, dates):
-    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
-                       trading_params=trading_params, selector_f=get_k_best,
-                       dates=dates)
-
-
-# def random_trade(df_trade, prices, clf_name, trading_params: dict):
-#     indices = sorted(
-#         [day for day in list(set(df_trade.index.values)) if day <= final_date])
-#     print("Monkey-Dart trading for %s" % clf_name)
-#
-#     portfolios = []
-#
-#     positions = []
-#     stash = 1000
-#
-#     for day in indices:
-#         topk, botk = get_k_random(df_trade, day, clf_name, trading_params)
-#         print("Random getting topk, botk = %s, %s" % (len(topk), len(botk)))
-#
-#         pf = Portfolio(day, cash=stash, positions=positions)
-#
-#         portfolios.append(pf)
-#
-#         old_positions = positions
-#         old_stash = stash
-#         stash, positions = update_positions(prices, day, old_stash,
-#                                             old_positions, botk, topk)
-#
-#     return portfolios
-
-
-def graham_trade(df_trade, prices, clf_name, trading_params, dates):
-    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
-                       trading_params=trading_params,
-                       selector_f=graham_screening,
-                       dates=dates)
 
 
 def graham_screening(df_trade, day, clf_name, trading_params):
@@ -154,7 +126,22 @@ def update_positions_buy_sell_all(prices, day, available_money, positions,
     # positions and available money.
     if same_positions:
         print("Same positions today as previous day." % day)
-        new_positions = positions
+        for p in positions:
+            try:
+                current_price = get_share_price(prices, day, p.symbol)
+            except Exception as e:
+                # This happens when we try to trade on a weekend or similar,
+                # we just use last close price.
+                # print("New price for %s not available using last." % p.symbol)
+                current_price = p.current_price
+
+            # get share price to update the position current_price, other
+            # than that the position is exactly the same
+            new_position = p.update_price(current_price)
+
+            # we do not pay fees as we already had that stock and position
+            new_positions.append(new_position)
+
     else:
         for p in positions:
             try:
@@ -205,7 +192,7 @@ def update_positions_buy_sell_all(prices, day, available_money, positions,
 
     new_positions = [p for p in new_positions if p is not None]
 
-    print("New positions: %s" % new_positions)
+    print("New positions: %s" % '\n'.join([str(np) for np in new_positions]))
     print("End %s with %s =================================\n\n" % (
         day, available_money))
     return available_money, new_positions
@@ -284,8 +271,57 @@ def update_positions_avoiding_fees(prices, day, available_money, positions,
     return available_money, new_positions
 
 
-def paper_trade(df_trade, prices, clf_name, trading_params, selector_f, dates):
-    start_date, final_date = dates
+def model_trade(df_trade, prices, clf_name, trading_params: dict, dates):
+    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
+                       trading_params=trading_params, selector_f=get_k_best)
+
+
+# def random_trade(df_trade, prices, clf_name, trading_params: dict):
+#     indices = sorted(
+#         [day for day in list(set(df_trade.index.values)) if day <= final_date])
+#     print("Monkey-Dart trading for %s" % clf_name)
+#
+#     portfolios = []
+#
+#     positions = []
+#     stash = 1000
+#
+#     for day in indices:
+#         topk, botk = get_k_random(df_trade, day, clf_name, trading_params)
+#         print("Random getting topk, botk = %s, %s" % (len(topk), len(botk)))
+#
+#         pf = Portfolio(day, cash=stash, positions=positions)
+#
+#         portfolios.append(pf)
+#
+#         old_positions = positions
+#         old_stash = stash
+#         stash, positions = update_positions(prices, day, old_stash,
+#                                             old_positions, botk, topk)
+#
+#     return portfolios
+
+
+def debug_trade(df_trade, prices, clf_name, trading_params, dates):
+    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
+                       trading_params=trading_params,
+                       selector_f=debug_selector)
+
+
+def graham_trade(df_trade, prices, clf_name, trading_params, dates):
+    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
+                       trading_params=trading_params,
+                       selector_f=graham_screening)
+
+
+def paper_trade(df_trade, prices, clf_name, trading_params, selector_f):
+    start_date, final_date = trading_params['dates']
+    print("Starting trading for %s: %s from [%s-%s] every %s" % (
+        clf_name, trading_params['mode'], start_date, final_date,
+        trading_params['trade_frequency']))
+
+    start_date = np.datetime64(start_date)
+    final_date = np.datetime64(final_date)
     if trading_params['mode'] == 'sell_all':
         update_positions = update_positions_buy_sell_all
     elif trading_params['mode'] == 'avoid_fees':
@@ -298,11 +334,10 @@ def paper_trade(df_trade, prices, clf_name, trading_params, selector_f, dates):
          start_date <= day <= final_date])
     indices = [indices[i] for i in range(0, len(indices), trade_freq)]
 
+    pf = None
     portfolios = []
     positions = []
     stash = 100000
-
-    print("Starting trading for %s" % clf_name)
 
     # for day in indices:
     for i in range(0, len(indices)):
@@ -319,5 +354,6 @@ def paper_trade(df_trade, prices, clf_name, trading_params, selector_f, dates):
         old_stash = stash
         stash, positions = update_positions(prices, day, old_stash,
                                             old_positions, botk, topk)
+    portfolios.append(Portfolio(indices[-1], cash=stash, positions=positions))
     print("Finished trading for %s" % clf_name)
     return portfolios

@@ -11,8 +11,8 @@ from pycompss.api.task import task
 from models.classifiers import *
 from models.classifiers import train_attrs as attrs
 from settings.basic import CACHE_PATH, DATE_FORMAT
-from trading.trade import model_trade, graham_trade
-from utils import get_headers, format_line, load_obj, save_obj, dict_to_str
+from trading.trade import model_trade, graham_trade, debug_trade
+from utils import load_obj, save_obj, dict_to_str, exists_obj
 
 try:
     import pyextrae.multiprocessing as pyextrae
@@ -65,9 +65,10 @@ def get_classification_data(df, attrs, indices, idx, magic_number):
     return train_x, train_y, test_x, test_y
 
 
-def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number, dates,
+def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
+          dates,
           dataset_name):
-    name = '%s-%s-attr%s-%s-%s-%s-%s-%s' % (
+    name = '%s-%s-attr%s-%s-%s-%s-%s-%s_' % (
         clf_name,
         dataset_name,
         len(attrs),
@@ -77,10 +78,10 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number, date
         pd.to_datetime(dates[1], format=DATE_FORMAT).date())
     cached_file = os.path.join(CACHE_PATH, name)
 
-    if os.path.exists(cached_file + '.pkl'):
-        df_trade = load_obj(cached_file)
-        print("Loaded from cache %s" % cached_file)
-        return df_trade
+    # if os.path.exists(cached_file + '.pkl'):
+    #     df_trade = load_obj(cached_file)
+    #     print("Loaded from cache %s" % cached_file)
+    #     return df_trade
 
     start_date, final_date = dates
     idx = 0
@@ -106,17 +107,20 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number, date
                 idx, len(indices), train_x.shape[0]))
             sys.stdout.flush()
 
-        clf = clf_class(**model_params).fit(train_x, train_y)
+        clf_cached_file = cached_file + str(indices[idx])[:10]
+        if exists_obj(clf_cached_file):
+            clf = load_obj(clf_cached_file)
+        else:
+            clf = clf_class(**model_params).fit(train_x, train_y)
+            save_obj(clf, clf_cached_file)
 
         df.loc[indices[idx + magic_number], clf_name] = clf.predict(test_x)
-        import ipdb
-        ipdb.set_trace()
 
         idx += 1
 
     df_trade = df.dropna(axis=0)
 
-    save_obj(df_trade, cached_file)
+    # save_obj(df_trade, cached_file)
 
     print("Finished training for %s" % (clf_name))
     return df_trade
@@ -155,10 +159,7 @@ def run_model(clf, clf_name, model_params, df, prices, dataset_name,
                              clf_name=clf_name, trading_params=trading_params,
                              dates=dates)
     total_time = time() - start
-    print(get_headers(trading_params=trading_params))
-    print(format_line(dataset_name, clf_name, magic_number,
-                      trading_params,
-                      model_params, portfolios, total_time))
+
     if tracing:
         sys.setprofile(pro_f)
 
@@ -179,10 +180,24 @@ def run_graham(clf, clf_name, model_params, df, prices, dataset_name,
                               trading_params=trading_params, dates=dates)
     total_time = time() - start
 
-    print(get_headers(trading_params=trading_params))
-    print(format_line(dataset_name, clf_name, magic_number,
-                      trading_params,
-                      model_params, portfolios, total_time))
+    if tracing:
+        sys.setprofile(pro_f)
+
+    return (portfolios, total_time)\
+
+@task(returns=2)
+def run_debug(clf, clf_name, model_params, df, prices, dataset_name,
+               magic_number, mode, trading_params, dates):
+    start = time()
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
+
+    print("Running debug with dataset: %s" % dataset_name)
+
+    portfolios = debug_trade(df_trade=df, prices=prices, clf_name=clf_name,
+                              trading_params=trading_params, dates=dates)
+    total_time = time() - start
 
     if tracing:
         sys.setprofile(pro_f)
@@ -234,8 +249,11 @@ def explore_models(classifiers, df, prices, dataset_name, save_path,
             # elif clf_name == 'random':
             #     mode = REGRESSION
             #     run = run_random
-            else:
+            elif clf_name == 'graham':
                 run = run_graham
+                mode = REGRESSION
+            else:
+                run = run_debug
                 mode = REGRESSION
 
             if 'n_jobs' in params.keys():

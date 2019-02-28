@@ -9,7 +9,7 @@ from string import Template
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
-from settings.basic import logging, DATE_FORMAT, DATA_PATH, CACHE_ENABLED
+from settings.basic import DATE_FORMAT, DATA_PATH, CACHE_ENABLED
 from tags import Tags
 from utils import call_and_cache, save_obj, load_symbol_list
 
@@ -220,9 +220,11 @@ class FundamentalsCollector(object):
 
                 period_key = '{}{}'.format(year, quarter)
                 try:
-                    series_financials_dict[symbol][period_key].update(period_dict)
+                    series_financials_dict[symbol][period_key].update(
+                        period_dict)
                 except KeyError:
-                    print("No fundamental info for symbol %s in period %s" % (symbol, period_key))
+                    print("No fundamental info for symbol %s in period %s" % (
+                    symbol, period_key))
 
     @staticmethod
     def _get_attr2id(series_financials_dict: dict) -> dict:

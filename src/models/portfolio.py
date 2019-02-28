@@ -28,8 +28,8 @@ class Portfolio(object):
         return self.cash + self.invested_money
 
     @property
-    def net_money(self) -> float:
-        return self.cash + np.sum([p.net_value for p in self.positions])
+    def net_invested(self) -> float:
+        return np.sum([p.net_value for p in self.positions])
 
     @property
     def fees(self) -> float:
@@ -44,17 +44,18 @@ class Portfolio(object):
         return self.cash
 
     def __str__(self):
-        str_rep = "%s: Positions: L %s - S %s. Available: %.2f, Invested: %.2f [%.2f + %.2f]\n" % (
+        str_rep = "%s: Positions: L %s - S %s. Available: %.2f, Invested: %.2f [%.2f + %.2f], Total: %.2f\n" % (
             self._day_str, self.long, self.short, self.available_money,
-            self.invested_money, self.net_money, self.fees)
+            self.invested_money, self.net_invested, self.fees, self.total_money)
 
         for p in self.positions:
             str_rep += '\n' + str(p)
+        return str_rep
 
     def __repr__(self):
-        return "%s: Positions: L %s - S %s. Available: %.2f, Invested: %.2f [%.2f + %.2f]\n" % (
+        return "%s: Positions: L %s - S %s. Available: %.2f, Invested: %.2f [%.2f + %.2f], Total: %.2f\n" % (
             self._day_str, self.long, self.short, self.available_money,
-            self.invested_money, self.net_money, self.fees)
+            self.invested_money, self.net_invested, self.fees, self.total_money)
 
 
 class Position(object):
@@ -146,7 +147,7 @@ class Position(object):
         initial_price = self.shares * self.buy_price
         end_price = self.shares * current_price
 
-        if self.position == Position.LONG:
+        if self.is_long():
             profit = end_price - initial_price
 
         else:  # position is short
@@ -166,7 +167,12 @@ class Position(object):
 
     @property
     def value(self):
-        return self.shares * self.current_price
+        if self.is_long():
+            return self.shares * (
+                self.buy_price + (self.current_price - self.buy_price))
+        else:
+            return self.shares * (
+                self.buy_price + (self.buy_price - self.current_price))
 
     def is_long(self):
         return self.position == Position.LONG
@@ -175,9 +181,9 @@ class Position(object):
         return self.position == Position.SHORT
 
     def __str__(self):
-        return "[%s, %s] %s shares. Buy/Current: %s/%s. Total money: %s" % (
+        return "\n[%s, %s] %s shares. Buy/Current: %.1f/%.1f. Total money: %.1f [%.1f, + %.1f]" % (
             self.symbol, self.position, self.shares, self.buy_price,
-            self.current_price, self.shares * self.current_price)
+            self.current_price, self.value, self.net_value, self.fees)
 
     def __repr__(self):
         return "%s (%s.%s)" % (self.symbol, self.shares, self.position)

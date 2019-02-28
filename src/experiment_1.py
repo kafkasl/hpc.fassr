@@ -11,7 +11,42 @@ from data_managers.data_collector import get_data, get_prices
 from models.classifiers import *
 from settings.basic import PROJECT_ROOT, DATA_PATH
 from training import explore_models
-from utils import save_obj, get_headers, format_line, load_obj
+from utils import save_obj, get_headers, format_line, load_obj, exists_obj, \
+    get_datasets_name
+
+
+def load_prices(prices_list='sp500'):
+    prices_file = os.path.join(DATA_PATH, 'prices_' + prices_list)
+    print("Trying to load %s exists? %s" %(prices_file, exists_obj(prices_file)))
+    if exists_obj(prices_file):
+        print("Loading from cache:\n * %s" % prices_file)
+        prices = load_obj(prices_file)
+    else:
+        prices = get_prices(symbols_list_name=prices_list,
+                            resample_period='1D', only_prices=True)
+
+    return prices
+
+
+def wait_results(results, log=False, datasets=None):
+    clean_results = []
+    for dataset_name, portfolios in results.items():
+        # wait on everything
+        for clf_name in portfolios.keys():
+            for i in range(0, len(portfolios[clf_name])):
+                model_params, trading_params, res = portfolios[clf_name][i]
+                res = compss_wait_on(res)
+                pfs, total_time = res
+                portfolios[clf_name][i] = (model_params, trading_params, res)
+                if log:
+                    print(format_line(dataset_name, clf_name,
+                                      datasets[dataset_name][1],
+                                      trading_params,
+                                      model_params, pfs, total_time))
+                params = (dataset_name, clf_name, model_params, trading_params,
+                          total_time)
+                clean_results = (params, pfs)
+    return clean_results
 
 
 def get_datasets(period_params, symbols_list_name, thresholds, target_shift,
@@ -19,18 +54,14 @@ def get_datasets(period_params, symbols_list_name, thresholds, target_shift,
     print("Initializing datasets for periods: %s" % period_params)
     datasets = {}
     for resample_period, magic_number in period_params:
-        normal_name = "normal_%s_%s_%s_%s_%s" % (
-            resample_period, symbols_list_name, thresholds[0], thresholds[1],
-            target_shift)
-        z_name = "z-score_%s_%s_%s_%s_%s" % (
-            resample_period, symbols_list_name, thresholds[0], thresholds[1],
-            target_shift)
+        normal_name, z_name = get_datasets_name(resample_period,
+                                                symbols_list_name, thresholds,
+                                                target_shift)
 
         normal_file = os.path.join(DATA_PATH, normal_name)
         z_file = os.path.join(DATA_PATH, z_name)
 
-        if os.path.exists(normal_file + ".pkl") and \
-                os.path.exists(z_file + ".pkl"):
+        if exists_obj(normal_file) and exists_obj(z_file):
             print("Loading from cache:\n * %s\n * %s" % (normal_file, z_file))
             dfn = load_obj(normal_file)
             dfz = load_obj(z_file)
@@ -44,9 +75,6 @@ def get_datasets(period_params, symbols_list_name, thresholds, target_shift,
             datasets[normal_name] = (dfn, magic_number)
         if mode == 'all' or mode == 'z-score':
             datasets[z_name] = (dfz, magic_number)
-
-        # save_obj(dfn, normal_file)
-        # save_obj(dfz, z_file)
 
     return datasets
 
@@ -90,6 +118,9 @@ if __name__ == '__main__':
     final_date = np.datetime64(args.final_date)
     dates = (start_date, final_date)
 
+    trade_start_date = '2009-03-04'
+    trade_final_date = '2018-02-28'
+
     trade_frequency = args.trade_frequency
     bot_threshold = args.bot_threshold if args.bot_threshold > -66 else -np.inf
     top_threshold = args.top_threshold if args.top_threshold < 66 else np.inf
@@ -102,7 +133,8 @@ if __name__ == '__main__':
                       'bot_thresh': bot_threshold,
                       'top_thresh': top_threshold,
                       'mode': args.trade_mode,
-                      'trade_frequency': trade_frequency}
+                      'trade_frequency': trade_frequency,
+                      'dates': (trade_start_date, trade_final_date)}
 
     period_params = [('1W', args.train_period)]
     classifiers = debug_1_classifiers
@@ -118,12 +150,13 @@ if __name__ == '__main__':
 
     results = {}
     prices_file = os.path.join(DATA_PATH, 'prices_sp500')
-    if os.path.exists(prices_file + ".pkl"):
+    if exists_obj(prices_file):
         print("Loading from cache:\n * %s" % prices_file)
         prices = load_obj(prices_file)
     else:
         prices = get_prices(symbols_list_name='sp500',
                             resample_period='1D', only_prices=True)
+        # save_obj(prices, prices_file)
 
     datasets = get_datasets(period_params=period_params,
                             symbols_list_name=symbols_list_name,
@@ -154,27 +187,9 @@ if __name__ == '__main__':
         "%s training tasks launched, proceeding to: wait for the results." % total_jobs)
     print("Total expected jobs: %s" % (1 + 4 * len(datasets) + total_jobs))
 
-    clean_results = []
     print(get_headers(trading_params))
-    for dataset_name, portfolios in results.items():
-        # wait on everything
-        for clf_name in portfolios.keys():
-            for i in range(0, len(portfolios[clf_name])):
-                model_params, trading_params, res = portfolios[clf_name][i]
-                res = compss_wait_on(res)
-                pfs, total_time = res
-                portfolios[clf_name][i] = (model_params, trading_params, res)
-                print(format_line(dataset_name, clf_name,
-                                  datasets[dataset_name][1],
-                                  trading_params,
-                                  model_params, pfs, total_time))
-                params = (dataset_name, clf_name, model_params, trading_params,
-                          total_time)
-                clean_results = (params, pfs)
+    clean_results = wait_results(results, log=True, datasets=datasets)
 
-    save_obj(results,
-             os.path.join(save_path, 'full_results_%s_%s' % (
-                 symbols_list_name, uuid4().hex[:8])))
     save_obj(clean_results,
              os.path.join(save_path, 'clean_results_%s_%s' % (
                  symbols_list_name, uuid4().hex[:8])))

@@ -32,6 +32,7 @@ cat_classifiers = {'MLPC': (MLPClassifier, [{}]),
                    # 'AutoC': (AutoSklearnClassifier, [{}])}
 
 random = {'random': (LinearRegression, [{}])}
+debug = {'debug': (LinearRegression, [{}])}
 graham = {'graham': (LinearRegression, [{}])}
 
 baseline_classifiers = {**random, **graham}
@@ -72,8 +73,8 @@ gbc_params = [{'n_estimators': i} for i in [50, 100]]
 #                        'ExtraTC': (ExtraTreesClassifier, raf_params),
 #                        'GBC': (GradientBoostingClassifier, gbc_params)}
 
-# debug_1_classifiers = {'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}
-debug_1_classifiers = {'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}
+debug_1_classifiers = {**debug, **{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}}
+# debug_1_classifiers = {**debug, **{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}}
                        # 'RFC': (RandomForestClassifier, [{'n_estimators': 100, 'n_jobs': 2}])}
 # debug_1_classifiers = {'GBC': (GradientBoostingClassifier, gbc_params)}
 # debug_1_classifiers = {'AdaBC': (AdaBoostClassifier, [{'n_estimators': 1000}])}

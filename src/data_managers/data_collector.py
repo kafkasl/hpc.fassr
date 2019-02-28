@@ -11,7 +11,7 @@ from data_managers.price_extraction import PriceExtractor
 from data_managers.sic import load_sic
 from models.classifiers import train_attrs as attrs
 from settings.basic import DATE_FORMAT, DATA_PATH
-from utils import load_symbol_list, save_obj
+from utils import load_symbol_list, save_obj, exists_obj, get_datasets_name
 
 try:
     import pyextrae.multiprocessing as pyextrae
@@ -159,6 +159,34 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry,
     return df_tidy
 
 
+
+
+
+@task(returns=1)
+def process_symbols(available_symbols, df_fund, df_prices, sic_code,
+                    sic_industry, thresholds, target_shift):
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
+
+    merged_dfs = []
+
+    for i, symbol in enumerate(available_symbols):
+        merged_dfs.append(process_symbol(symbol=symbol + '_', df_fund=df_fund,
+                                         df_prices=df_prices,
+                                         sic_code=sic_code,
+                                         sic_industry=sic_industry,
+                                         thresholds=thresholds,
+                                         target_shift=target_shift))
+
+    df = pd.concat(merged_dfs).sort_index()
+
+    if tracing:
+        sys.setprofile(pro_f)
+
+    return df
+
+
 @task(returns=2)
 def post_process(df, files):
     # TODO:  there is a paper where they said how to build the survivor bias list
@@ -190,39 +218,15 @@ def post_process(df, files):
            .reset_index().set_index('date'))
     dfz = dfz.dropna(axis=0).reset_index().set_index('date')
 
-    save_obj(dfn, files[0])
-    save_obj(dfz, files[1])
+    if not exists_obj(files[0]):
+        save_obj(dfn, files[0])
+    if not exists_obj(files[1]):
+        save_obj(dfz, files[1])
 
     if tracing:
         sys.setprofile(pro_f)
 
     return dfn, dfz
-
-
-@task(returns=1)
-def process_symbols(available_symbols, df_fund, df_prices, sic_code,
-                    sic_industry, thresholds, target_shift):
-    if tracing:
-        pro_f = sys.getprofile()
-        sys.setprofile(None)
-
-    merged_dfs = []
-
-    for i, symbol in enumerate(available_symbols):
-        merged_dfs.append(process_symbol(symbol=symbol + '_', df_fund=df_fund,
-                                         df_prices=df_prices,
-                                         sic_code=sic_code,
-                                         sic_industry=sic_industry,
-                                         thresholds=thresholds,
-                                         target_shift=target_shift))
-
-    df = pd.concat(merged_dfs).sort_index()
-
-    if tracing:
-        sys.setprofile(pro_f)
-
-    return df
-
 
 def get_data(thresholds, resample_period='1W', symbols_list_name='sp500',
              start_date='2006-01-01', target_shift=4):
@@ -270,10 +274,8 @@ def get_data(thresholds, resample_period='1W', symbols_list_name='sp500',
     df = process_symbols(available_symbols, df_fund, df_prices, sic_code,
                          sic_industry, thresholds, target_shift)
 
-    normal_name = "normal_%s_%s_%s" % (
-        resample_period, thresholds[0], thresholds[1])
-    z_name = "z-score_%s_%s_%s" % (
-        resample_period, thresholds[0], thresholds[1])
+    normal_name, z_name = get_datasets_name(resample_period, symbols_list_name,
+                                            thresholds, target_shift)
 
     normal_file = os.path.join(DATA_PATH, normal_name)
     z_file = os.path.join(DATA_PATH, z_name)
