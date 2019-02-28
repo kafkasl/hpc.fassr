@@ -45,7 +45,7 @@ def wait_results(results, log=False, datasets=None):
                                       model_params, pfs, total_time))
                 params = (dataset_name, clf_name, model_params, trading_params,
                           total_time)
-                clean_results = (params, pfs)
+                clean_results.append((params, pfs))
     return clean_results
 
 
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     final_date = np.datetime64(args.final_date)
     dates = (start_date, final_date)
 
-    trade_start_date = '2009-03-04'
+    trade_start_date = '2009-03-03'
     trade_final_date = '2018-02-28'
 
     trade_frequency = args.trade_frequency

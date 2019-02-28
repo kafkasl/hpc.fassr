@@ -4,6 +4,7 @@ from collections import defaultdict
 from time import time
 
 import matplotlib
+import numpy as np
 import pandas as pd
 from pycompss.api.constraint import constraint
 from pycompss.api.task import task
@@ -66,8 +67,8 @@ def get_classification_data(df, attrs, indices, idx, magic_number):
 
 
 def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
-          dates,
-          dataset_name):
+          dates, dataset_name, trading_params):
+    trade_freq = trading_params['trade_frequency']
     name = '%s-%s-attr%s-%s-%s-%s-%s-%s_' % (
         clf_name,
         dataset_name,
@@ -78,13 +79,12 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
         pd.to_datetime(dates[1], format=DATE_FORMAT).date())
     cached_file = os.path.join(CACHE_PATH, name)
 
-    # if os.path.exists(cached_file + '.pkl'):
-    #     df_trade = load_obj(cached_file)
-    #     print("Loaded from cache %s" % cached_file)
-    #     return df_trade
 
     start_date, final_date = dates
     idx = 0
+
+
+
     indices = sorted(
         [day for day in list(set(df.index.values)) if
          start_date <= day <= final_date])
@@ -102,10 +102,9 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
             train_x, train_y, test_x, test_y = \
                 get_regression_data(df, attrs, indices, idx, magic_number)
 
-        if idx % 50 == 0:
-            print("Training %s/%s with %s instances." % (
-                idx, len(indices), train_x.shape[0]))
-            sys.stdout.flush()
+        print("Training %s/%s with %s instances." % (
+            idx, len(indices) // trade_freq, train_x.shape[0]))
+        sys.stdout.flush()
 
         clf_cached_file = cached_file + str(indices[idx])[:10]
         if exists_obj(clf_cached_file):
@@ -114,13 +113,14 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
             clf = clf_class(**model_params).fit(train_x, train_y)
             save_obj(clf, clf_cached_file)
 
-        df.loc[indices[idx + magic_number], clf_name] = clf.predict(test_x)
+        pred = clf.predict(test_x)
 
-        idx += 1
+        df.loc[indices[idx + magic_number], clf_name] = pred
+
+        idx += trade_freq
 
     df_trade = df.dropna(axis=0)
 
-    # save_obj(df_trade, cached_file)
 
     print("Finished training for %s" % (clf_name))
     return df_trade
@@ -153,9 +153,12 @@ def run_model(clf, clf_name, model_params, df, prices, dataset_name,
         sys.setprofile(None)
 
     df_trade = train(df, attrs, clf, clf_name, model_params, mode,
-                     magic_number, dates=dates, dataset_name=dataset_name)
+                     magic_number, dates=dates, dataset_name=dataset_name,
+                     trading_params=trading_params)
 
-    portfolios = model_trade(df_trade, prices=prices,
+    indices = sorted(
+        [day for day in list(set(df_trade.index.values))])
+    portfolios = model_trade(df_trade, indices=indices, prices=prices,
                              clf_name=clf_name, trading_params=trading_params,
                              dates=dates)
     total_time = time() - start
@@ -175,28 +178,50 @@ def run_graham(clf, clf_name, model_params, df, prices, dataset_name,
         sys.setprofile(None)
 
     print("Running graham with dataset: %s" % dataset_name)
+    start_date = np.datetime64(dates[0])
+    final_date = np.datetime64(dates[1])
 
-    portfolios = graham_trade(df_trade=df, prices=prices, clf_name=clf_name,
+    indices = sorted(
+        [day for day in list(set(df.index.values)) if
+         start_date <= day <= final_date])
+    # we add the offset of the training data which ain't required for Graham
+    indices = indices[magic_number:]
+    indices = [indices[i] for i in
+               range(0, len(indices), trading_params['trade_frequency'])]
+
+    portfolios = graham_trade(df_trade=df, indices=indices, prices=prices,
+                              clf_name=clf_name,
                               trading_params=trading_params, dates=dates)
     total_time = time() - start
 
     if tracing:
         sys.setprofile(pro_f)
 
-    return (portfolios, total_time)\
+    return (portfolios, total_time)
+
 
 @task(returns=2)
 def run_debug(clf, clf_name, model_params, df, prices, dataset_name,
-               magic_number, mode, trading_params, dates):
+              magic_number, mode, trading_params, dates):
     start = time()
     if tracing:
         pro_f = sys.getprofile()
         sys.setprofile(None)
 
+    start_date = np.datetime64(dates[0])
+    final_date = np.datetime64(dates[1])
+    indices = sorted(
+        [day for day in list(set(df.index.values)) if
+         start_date <= day <= final_date])
+    # we add the offset of the training data which ain't required for Graham
+    indices = indices[magic_number:]
+    indices = [indices[i] for i in
+               range(0, len(indices), trading_params['trade_frequency'])]
     print("Running debug with dataset: %s" % dataset_name)
 
-    portfolios = debug_trade(df_trade=df, prices=prices, clf_name=clf_name,
-                              trading_params=trading_params, dates=dates)
+    portfolios = debug_trade(df_trade=df, indices=indices, prices=prices,
+                             clf_name=clf_name,
+                             trading_params=trading_params, dates=dates)
     total_time = time() - start
 
     if tracing:

@@ -1,9 +1,12 @@
+import os
 from math import sqrt
 
 import numpy as np
 import pandas as pd
 
 from models.portfolio import Portfolio, Position
+from settings.basic import DATA_PATH
+from utils import load_obj
 
 
 def get_share_price(prices, day, symbol):
@@ -21,6 +24,8 @@ def debug_selector(df_trade, day, clf_name, trading_params):
 
 
 def get_k_best(df_trade, day, clf_name, trading_params):
+    # import ipdb
+    # ipdb.set_trace()
     # sort by predicted increment per stock of classifier clf_name
     df_clf = df_trade[['y', clf_name, 'symbol', 'price']]
     df_aux = df_clf.loc[[day]].sort_values(clf_name)
@@ -169,9 +174,12 @@ def update_positions_buy_sell_all(prices, day, available_money, positions,
                 position, extra_money = Position.long(symbol=symbol,
                                                       price=price,
                                                       available_money=stash)
+                if position is None:
+                    continue
                 new_positions.append(position)
 
-                # extra money of buying only whole shares is returned to the stash
+                # extra money of buying only whole shares is returned to the
+                # stash
                 available_money += extra_money
                 remaining_stocks -= 1
 
@@ -184,13 +192,14 @@ def update_positions_buy_sell_all(prices, day, available_money, positions,
                 position, extra_money = Position.short(symbol=symbol,
                                                        price=price,
                                                        available_money=stash)
+                if position is None:
+                    continue
                 new_positions.append(position)
 
-                # extra money of buying only whole shares is returned to the stash
+                # extra money of buying only whole shares is returned to the
+                # stash
                 available_money += extra_money
                 remaining_stocks -= 1
-
-    new_positions = [p for p in new_positions if p is not None]
 
     print("New positions: %s" % '\n'.join([str(np) for np in new_positions]))
     print("End %s with %s =================================\n\n" % (
@@ -242,10 +251,15 @@ def update_positions_avoiding_fees(prices, day, available_money, positions,
         for (idx, y, pred, symbol, price) in topk.itertuples():
             # get a proportional amount of money to buy
             # subtract it from the total
+            if available_money - stash < 0:
+                break
+
             available_money -= stash
 
             position, extra_money = Position.long(symbol=symbol, price=price,
                                                   available_money=stash)
+            if position is None:
+                continue
             new_positions.append(position)
 
             # extra money of buying only whole shares is returned to the stash
@@ -254,16 +268,19 @@ def update_positions_avoiding_fees(prices, day, available_money, positions,
         for (idx, y, pred, symbol, price) in botk.itertuples():
             # get a proportional amount of money to buy
             # subtract it from the total
+            if available_money - stash < 0:
+                break
+
             available_money -= stash
 
             position, extra_money = Position.short(symbol=symbol, price=price,
                                                    available_money=stash)
+            if position is None:
+                continue
             new_positions.append(position)
 
             # extra money of buying only whole shares is returned to the stash
             available_money += extra_money
-
-    new_positions = [p for p in new_positions if p is not None]
 
     print("New positions: %s" % new_positions)
     print("End %s with %s =================================\n\n" % (
@@ -271,8 +288,8 @@ def update_positions_avoiding_fees(prices, day, available_money, positions,
     return available_money, new_positions
 
 
-def model_trade(df_trade, prices, clf_name, trading_params: dict, dates):
-    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
+def model_trade(df_trade, indices, prices, clf_name, trading_params: dict, dates):
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
                        trading_params=trading_params, selector_f=get_k_best)
 
 
@@ -302,26 +319,26 @@ def model_trade(df_trade, prices, clf_name, trading_params: dict, dates):
 #     return portfolios
 
 
-def debug_trade(df_trade, prices, clf_name, trading_params, dates):
-    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
+def debug_trade(df_trade, indices, prices, clf_name, trading_params, dates):
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
                        trading_params=trading_params,
                        selector_f=debug_selector)
 
 
-def graham_trade(df_trade, prices, clf_name, trading_params, dates):
-    return paper_trade(df_trade=df_trade, prices=prices, clf_name=clf_name,
+def graham_trade(df_trade, indices, prices, clf_name, trading_params, dates):
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
                        trading_params=trading_params,
                        selector_f=graham_screening)
 
 
-def paper_trade(df_trade, prices, clf_name, trading_params, selector_f):
+def paper_trade(df_trade, indices, prices, clf_name, trading_params, selector_f):
     start_date, final_date = trading_params['dates']
     print("Starting trading for %s: %s from [%s-%s] every %s" % (
         clf_name, trading_params['mode'], start_date, final_date,
         trading_params['trade_frequency']))
 
-    start_date = np.datetime64(start_date)
-    final_date = np.datetime64(final_date)
+    # start_date = np.datetime64(start_date)
+    # final_date = np.datetime64(final_date)
     if trading_params['mode'] == 'sell_all':
         update_positions = update_positions_buy_sell_all
     elif trading_params['mode'] == 'avoid_fees':
@@ -329,17 +346,20 @@ def paper_trade(df_trade, prices, clf_name, trading_params, selector_f):
 
     # Number of weeks between each trading session (i.e. 4 = trading monthly)
     trade_freq = trading_params['trade_frequency']
-    indices = sorted(
-        [day for day in list(set(df_trade.index.values)) if
-         start_date <= day <= final_date])
-    indices = [indices[i] for i in range(0, len(indices), trade_freq)]
+    date_indices = load_obj(os.path.join(DATA_PATH, 'date_indices'))
+    # indices = sorted(
+        # [day for day in list(set(df_trade.index.values)) if
+        #  start_date <= day <= final_date])
+    # indices = sorted(
+    #     [day for day in list(set(df_trade.index.values))])
+    # indices = [indices[i] for i in range(0, len(indices), trade_freq)]
 
-    pf = None
+    # import ipdb
+    # ipdb.set_trace()
     portfolios = []
     positions = []
     stash = 100000
 
-    # for day in indices:
     for i in range(0, len(indices)):
         day = indices[i]
         # sort by predicted increment per stock of classifier clf_name

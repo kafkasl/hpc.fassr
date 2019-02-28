@@ -33,8 +33,9 @@ def get_datasets_name(resample_period, symbols_list_name, thresholds,
 
 def get_headers(trading_params):
     header = 'dataset,period,clf,magic,model_params,'
-    header += ','.join([k for k in trading_params.keys()]) + ','
-    header += 'time,min,max,mean,last'
+    header += ','.join(
+        [k for k in trading_params.keys() if k != 'dates'])
+    header += ',start_trade,final_trade,time,min,max,mean,last'
 
     return header
 
@@ -45,7 +46,9 @@ def format_line(dataset_name, clf, magic, trading_params, model_params, pfs,
     line = '%s,%s,%s,%s,%s,' % (
         dataset_name.split('_')[0], dataset_name.split('_')[1], clf, magic,
         dict_to_str(model_params))
-    line += ','.join([str(v) for v in trading_params.values()]) + ','
+    line += ','.join(list([str(v) for v in trading_params.values()])[:-1])
+    line += ',' + trading_params['dates'][0] + ',' + \
+            trading_params['dates'][1] + ','
     line += '%.2f,' % total_time
     line += '%.1f,%.1f,%.1f,%.1f' % (np.min(r), np.max(r), np.mean(r), r[-1])
 
