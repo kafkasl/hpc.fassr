@@ -1,33 +1,8 @@
 import os
 from string import Template
 
-from settings.basic import logging, DATA_PATH
+from settings.basic import DATA_PATH
 from utils import call_and_cache
-
-company_url_template = Template(
-    'https://api.intrinio.com/companies?identifier=${symbol}')
-
-symbols_list_name = 'dow30'
-
-symbols = open(os.path.join(DATA_PATH,
-                            '%s_symbols.lst' % symbols_list_name)).read().split()
-
-symbol2sic = []
-
-for symbol in symbols:
-
-    url = company_url_template.substitute(symbol=symbol)
-
-    data_json = call_and_cache(url)
-
-    try:
-        symbol2sic.append((symbol, data_json['sic']))
-    except KeyError:
-        print(
-            "KeyError in data_json[sic], probably no info about %s is available." % symbol)
-
-with open(os.path.join(DATA_PATH, '%s_sic.txt' % symbols_list_name), 'w') as f:
-    f.write('\n'.join(['%s,%s' % (s, sic) for s, sic in symbol2sic]))
 
 
 def get_sic_industry_name(code) -> str:
@@ -78,10 +53,38 @@ def load_sic(symbols_list_name: str = 'sp500') -> dict:
     # sp500 contains dow30, so we just use sp500 sic info
 
     sic_code = {}
-    for row in open(os.path.join(DATA_PATH, 'sp500_sic.txt')):
+    for row in open(os.path.join(DATA_PATH, '%s_sic.txt' % symbols_list_name)):
         symbol, sic = row.split(',')
         sic_code[symbol] = int(sic)
     sic_industry = {symbol: get_sic_industry(sic) for symbol, sic in
                     sic_code.items()}
 
     return sic_code, sic_industry
+
+
+def main():
+    company_url_template = Template(
+        'https://api.intrinio.com/companies?identifier=${symbol}')
+
+    symbols_list_name = 'dow30'
+
+    symbols = open(os.path.join(DATA_PATH,
+                                '%s_symbols.lst' % symbols_list_name)).read().split()
+
+    symbol2sic = []
+
+    for symbol in symbols:
+
+        url = company_url_template.substitute(symbol=symbol)
+
+        data_json = call_and_cache(url)
+
+        try:
+            symbol2sic.append((symbol, data_json['sic']))
+        except KeyError:
+            print(
+                "KeyError in data_json[sic], probably no info about %s is available." % symbol)
+
+    with open(os.path.join(DATA_PATH, '%s_sic.txt' % symbols_list_name),
+              'w') as f:
+        f.write('\n'.join(['%s,%s' % (s, sic) for s, sic in symbol2sic]))

@@ -43,19 +43,39 @@ class Portfolio(object):
     def available_money(self) -> float:
         return self.cash
 
+    @staticmethod
+    def to_df(pfs):
+        total = pd.DataFrame([p.total_money for p in pfs], columns='total')
+        net = pd.DataFrame([p.net_invested for p in pfs],
+                           columns='net_invested')
+        fees = pd.DataFrame([p.fees for p in pfs], columns='fees')
+        inv = pd.DataFrame([p.invested_money for p in pfs],
+                           columns='total_invested')
+        cash = pd.DataFrame([p.cash for p in pfs], columns='cash')
+
+        return pd.concat([cash, net, fees, inv, total], axis=1)
+
+    @staticmethod
+    def to_df_col(pfs, name):
+        index = [p._day_str for p in pfs]
+        data = [p.total_money for p in pfs]
+        return pd.DataFrame(data=data, index=index, columns=[name])
+
     def __str__(self):
         str_rep = "%s: Positions: L %s - S %s. Available: %.2f, Invested: %.2f [%.2f + %.2f], Total: %.2f\n" % (
             self._day_str, self.long, self.short, self.available_money,
-            self.invested_money, self.net_invested, self.fees, self.total_money)
+            self.invested_money, self.net_invested, self.fees,
+            self.total_money)
 
         for p in self.positions:
-            str_rep += '\n' + str(p)
+            str_rep += str(p)
         return str_rep
 
     def __repr__(self):
         return "%s: Positions: L %s - S %s. Available: %.2f, Invested: %.2f [%.2f + %.2f], Total: %.2f\n" % (
             self._day_str, self.long, self.short, self.available_money,
-            self.invested_money, self.net_invested, self.fees, self.total_money)
+            self.invested_money, self.net_invested, self.fees,
+            self.total_money)
 
 
 class Position(object):

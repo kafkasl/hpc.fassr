@@ -31,7 +31,7 @@ df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
                                 start_date=start_year,
                                 end_date=end_year).collect()
 
-sic_code, sic_industry = load_sic(symbols_list_name)
+sic_code, sic_industry = load_sic()
 
 # TODO: drop_duplicates an incorrect value from intrinio
 df_fund = (df_fund

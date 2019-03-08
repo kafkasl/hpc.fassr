@@ -13,7 +13,7 @@ from models.classifiers import *
 from models.classifiers import train_attrs as attrs
 from settings.basic import CACHE_PATH, DATE_FORMAT
 from trading.trade import model_trade, graham_trade, debug_trade
-from utils import load_obj, save_obj, dict_to_str, exists_obj
+from utils import load_obj, save_obj, dict_to_str
 
 try:
     import pyextrae.multiprocessing as pyextrae
@@ -79,11 +79,8 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
         pd.to_datetime(dates[1], format=DATE_FORMAT).date())
     cached_file = os.path.join(CACHE_PATH, name)
 
-
     start_date, final_date = dates
     idx = 0
-
-
 
     indices = sorted(
         [day for day in list(set(df.index.values)) if
@@ -103,13 +100,13 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
                 get_regression_data(df, attrs, indices, idx, magic_number)
 
         print("Training %s/%s with %s instances." % (
-            idx, len(indices) // trade_freq, train_x.shape[0]))
+            idx // trade_freq, len(indices) // trade_freq, train_x.shape[0]))
         sys.stdout.flush()
 
         clf_cached_file = cached_file + str(indices[idx])[:10]
-        if exists_obj(clf_cached_file):
+        try:
             clf = load_obj(clf_cached_file)
-        else:
+        except:
             clf = clf_class(**model_params).fit(train_x, train_y)
             save_obj(clf, clf_cached_file)
 
@@ -121,24 +118,34 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
 
     df_trade = df.dropna(axis=0)
 
-
     print("Finished training for %s" % (clf_name))
     return df_trade
 
 
 @task(returns=2)
-def run_seq_model(clf, clf_name, model_params, df, prices, dataset_name,
-                  magic_number, mode, trading_params, dates):
+def run_regression_model(clf, clf_name, model_params, df, prices, dataset_name,
+                         magic_number, mode, trading_params, dates):
     print("Running sequential model %s [%s] with dataset: %s" % (
         clf_name, model_params, dataset_name))
     return run_model(clf, clf_name, model_params, df, prices, dataset_name,
                      magic_number, mode, trading_params, dates)
 
 
-@constraint(ComputingUnits="8")
+@task(returns=2)
+def run_classification_model(clf, clf_name, model_params, df, prices,
+                             dataset_name,
+                             magic_number, mode, trading_params, dates):
+    print("Running sequential model %s [%s] with dataset: %s" % (
+        clf_name, model_params, dataset_name))
+    return run_model(clf, clf_name, model_params, df, prices, dataset_name,
+                     magic_number, mode, trading_params, dates)
+
+
+@constraint(ComputingUnits="${ComputingUnits}")
 @task(returns=2)
 def run_parallel_model(clf, clf_name, model_params, df, prices, dataset_name,
                        magic_number, mode, trading_params, dates):
+    global N_JOBS
     print("Running parallel model %s [%s] with dataset: %s" % (
         clf_name, model_params, dataset_name))
     return run_model(clf, clf_name, model_params, df, prices, dataset_name,
@@ -267,10 +274,10 @@ def explore_models(classifiers, df, prices, dataset_name, save_path,
 
             if clf_name in reg_classifiers.keys():
                 mode = REGRESSION
-                run = run_seq_model
+                run = run_regression_model
             elif clf_name in cat_classifiers.keys():
                 mode = CLASSIFICATION
-                run = run_seq_model
+                run = run_classification_model
             # elif clf_name == 'random':
             #     mode = REGRESSION
             #     run = run_random

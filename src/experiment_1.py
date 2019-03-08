@@ -105,12 +105,15 @@ if __name__ == '__main__':
                         choices=['sell_all', 'avoid_fees'])
     parser.add_argument('--datasets', type=str, default='all',
                         choices=['all', 'normal', 'z-score'])
-    parser.add_argument('--start_date', type=str, default='2006-01-01')
-    parser.add_argument('--final_date', type=str, default='2018-06-06')
+    parser.add_argument('--start_date', type=str, default='2006-01-01',
+                        help="Start date of the period used for training.")
+    parser.add_argument('--final_date', type=str, default='2018-06-06',
+                        help="Final date of the period used for training.")
     parser.add_argument('--train_period', type=int, default=53,
                         help='Number of weeks to use in each training/predict'
                              'cycle. The last one will be used for testing. 53'
                              'means: 52 for training, predict the 53rd.')
+
 
     args = parser.parse_args()
 
@@ -142,7 +145,6 @@ if __name__ == '__main__':
 
     if not args.debug:
 
-        # period_params = [('1W', 53), ('1SM', 27), ('1BM', 14), ('1Q', 7)]
         if experiment == 1:
             classifiers = experiment_1_classifiers
         elif experiment == 2:
@@ -156,7 +158,7 @@ if __name__ == '__main__':
     else:
         prices = get_prices(symbols_list_name='sp500',
                             resample_period='1D', only_prices=True)
-        # save_obj(prices, prices_file)
+        save_obj(prices, prices_file)
 
     datasets = get_datasets(period_params=period_params,
                             symbols_list_name=symbols_list_name,

@@ -158,3 +158,27 @@ def plot_2_axis():
     ax2.scatter(df['last'], df.gamma, c='r')
     ax1.set_yscale('log')
     ax2.set_yscale('log')
+
+
+def to_df_col(pfs, name):
+    index = [p._day_str for p in pfs]
+    data = [p.total_money for p in pfs]
+    return pd.DataFrame(data=data, index=index, columns=[name])
+
+
+def get_trend(file, price, name):
+    res = load_obj(file)
+    res = [r for r in res if '%.1f' % r[1][-1].total_money == str(price)]
+    return to_df_col(res[0][1], name)
+
+
+def plot_scp():
+    mlpc = get_trend('clean_results_sp437_2bb95299', 1413316.4, 'NN')
+    svc = get_trend('clean_results_sp437_2bb95299', 1317296.2, 'SVC')
+    rfc = get_trend('clean_results_sp437_1feda273', 629870.5, 'RFC')
+    adaboost = get_trend('clean_results_sp437_41cb0e58', 620100.8,'AdaBoost')
+    graham = get_trend('clean_results_sp437_2bb95299', 547199.6,'Graham')
+
+    df = pd.concat([mlpc, svc, rfc, adaboost, graham], axis=1).interpolate()
+    df.index = pd.to_datetime(df.index)
+    return df

@@ -73,7 +73,6 @@ def get_fundamentals(symbols_list_name, start_date, end_date, resample_period):
     df_fund = FundamentalsCollector(symbols_list_name=symbols_list_name,
                                     start_date=start_date,
                                     end_date=end_date).collect()
-    # TODO: drop_duplicates an incorrect value from intrinio
     df_fund = (df_fund
         .drop_duplicates(['date', 'symbol'], keep='first')
         .assign(date=lambda r: pd.to_datetime(r.date, format=DATE_FORMAT))
@@ -97,7 +96,6 @@ def get_fundamentals(symbols_list_name, start_date, end_date, resample_period):
     return df_fund
 
 
-# @task(returns=pd.DataFrame)
 def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry,
                    thresholds, target_shift):
     # TODO remove this once pyCOMPSs supports single-char parameters
@@ -159,9 +157,6 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry,
     return df_tidy
 
 
-
-
-
 @task(returns=1)
 def process_symbols(available_symbols, df_fund, df_prices, sic_code,
                     sic_industry, thresholds, target_shift):
@@ -198,7 +193,7 @@ def post_process(df, files):
     # for tag in desired_tags:
     dfz = pd.DataFrame(df, copy=True)
     dfn = pd.DataFrame(df, copy=True)
-    for tag in attrs:
+    for tag in [a for a in attrs if a not in ['wc', 'revenue']]:
         v = df[tag]
         g = df.groupby(['date', 'sic_industry'])[tag]
         dfz[tag] = (v - g.transform(np.mean)) / g.transform(np.std)
@@ -228,6 +223,7 @@ def post_process(df, files):
 
     return dfn, dfz
 
+
 def get_data(thresholds, resample_period='1W', symbols_list_name='sp500',
              start_date='2006-01-01', target_shift=4):
     print("Getting data for: %s - %s from %s with thresholds %s" % (
@@ -246,7 +242,7 @@ def get_data(thresholds, resample_period='1W', symbols_list_name='sp500',
                                end_date=end_date,
                                resample_period=resample_period)
 
-    sic_code, sic_industry = load_sic(symbols_list_name=symbols_list_name)
+    sic_code, sic_industry = load_sic()
 
     alist_path = os.path.join(DATA_PATH, 'available_%s' % symbols_list_name)
 

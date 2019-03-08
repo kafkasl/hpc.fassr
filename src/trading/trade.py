@@ -85,6 +85,8 @@ def graham_screening(df_trade, day, clf_name, trading_params):
             # print("Day [%s] for symbol %s not found in index." % (day, symbol))
             # full_print(df_aux)
             continue
+
+        # TODO where is the 2 * assets > liabilities
         succesful &= day_info.revenue > 1500000000
         succesful &= day_info.wc > 0
         succesful &= (df_aux_y.eps > 0).sum() == row_years
@@ -344,15 +346,6 @@ def paper_trade(df_trade, indices, prices, clf_name, trading_params, selector_f)
     elif trading_params['mode'] == 'avoid_fees':
         update_positions = update_positions_avoiding_fees
 
-    # Number of weeks between each trading session (i.e. 4 = trading monthly)
-    trade_freq = trading_params['trade_frequency']
-    date_indices = load_obj(os.path.join(DATA_PATH, 'date_indices'))
-    # indices = sorted(
-        # [day for day in list(set(df_trade.index.values)) if
-        #  start_date <= day <= final_date])
-    # indices = sorted(
-    #     [day for day in list(set(df_trade.index.values))])
-    # indices = [indices[i] for i in range(0, len(indices), trade_freq)]
 
     # import ipdb
     # ipdb.set_trace()
@@ -366,14 +359,16 @@ def paper_trade(df_trade, indices, prices, clf_name, trading_params, selector_f)
 
         topk, botk = selector_f(df_trade, day, clf_name, trading_params)
 
-        pf = Portfolio(day, cash=stash, positions=positions)
-
-        portfolios.append(pf)
 
         old_positions = positions
         old_stash = stash
         stash, positions = update_positions(prices, day, old_stash,
                                             old_positions, botk, topk)
-    portfolios.append(Portfolio(indices[-1], cash=stash, positions=positions))
+
+        pf = Portfolio(day, cash=stash, positions=positions)
+
+        portfolios.append(pf)
+
+    # portfolios.append(Portfolio(indices[-1], cash=stash, positions=positions))
     print("Finished trading for %s" % clf_name)
     return portfolios

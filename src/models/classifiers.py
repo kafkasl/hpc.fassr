@@ -1,6 +1,5 @@
 from itertools import product
 
-# from autosklearn.classification import AutoSklearnClassifier
 from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.ensemble import GradientBoostingClassifier
@@ -29,7 +28,7 @@ cat_classifiers = {'MLPC': (MLPClassifier, [{}]),
                    'DTC': (DecisionTreeClassifier, [{}]),
                    'RFC': (RandomForestClassifier, [{}]),
                    'ExtraTC': (ExtraTreesClassifier, [{}])}
-                   # 'AutoC': (AutoSklearnClassifier, [{}])}
+# 'AutoC': (AutoSklearnClassifier, [{}])}
 
 random = {'random': (LinearRegression, [{}])}
 debug = {'debug': (LinearRegression, [{}])}
@@ -64,7 +63,7 @@ m_solver = [{'solver': s} for s in ['lbfgs', 'adam']]
 mlp_params = [{**d1, **d2} for d1, d2 in product(n_h, m_solver)]
 
 # using 250, 500 or 1000 yielded similar results
-raf_params = [{'n_estimators': i, 'n_jobs': 8} for i in [50, 100, 250, 500]]
+raf_params = [{'n_estimators': i, 'n_jobs': 25} for i in [50, 100, 250, 500]]
 ada_params = [{'n_estimators': i} for i in [50, 100]]
 gbc_params = [{'n_estimators': i} for i in [50, 100]]
 
@@ -73,9 +72,13 @@ gbc_params = [{'n_estimators': i} for i in [50, 100]]
 #                        'ExtraTC': (ExtraTreesClassifier, raf_params),
 #                        'GBC': (GradientBoostingClassifier, gbc_params)}
 
-debug_1_classifiers = {**debug, **{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}}
+# debug_1_classifiers = {'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}
+debug_1_classifiers = {**{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}]),
+                          'MLPC': (MLPClassifier, [{}, {}]),
+                          'RFC': (RandomForestClassifier, [{'n_jobs': 2, 'n_estimators': 25}, {'n_jobs': 2, 'n_estimators': 25}])},
+                       **graham}
 # debug_1_classifiers = {**debug, **{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}}
-                       # 'RFC': (RandomForestClassifier, [{'n_estimators': 100, 'n_jobs': 2}])}
+# 'RFC': (RandomForestClassifier, [{'n_estimators': 100, 'n_jobs': 2}])}
 # debug_1_classifiers = {'GBC': (GradientBoostingClassifier, gbc_params)}
 # debug_1_classifiers = {'AdaBC': (AdaBoostClassifier, [{'n_estimators': 1000}])}
 # debug_1_classifiers = {**graham,
