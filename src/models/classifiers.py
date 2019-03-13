@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from itertools import product
 
 from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
@@ -75,7 +76,9 @@ gbc_params = [{'n_estimators': i} for i in [50, 100]]
 # debug_1_classifiers = {'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}
 debug_1_classifiers = {**{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}]),
                           'MLPC': (MLPClassifier, [{}, {}]),
-                          'RFC': (RandomForestClassifier, [{'n_jobs': 2, 'n_estimators': 25}, {'n_jobs': 2, 'n_estimators': 25}])},
+                          'RFC': (RandomForestClassifier,
+                                  [{'n_jobs': 2, 'n_estimators': 25},
+                                   {'n_jobs': 2, 'n_estimators': 25}])},
                        **graham}
 # debug_1_classifiers = {**debug, **{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}}
 # 'RFC': (RandomForestClassifier, [{'n_estimators': 100, 'n_jobs': 2}])}
@@ -93,14 +96,18 @@ experiment_1_classifiers = {**graham,
                                'RFC': (RandomForestClassifier, raf_params),
                                'AdaBC': (AdaBoostClassifier, ada_params)}}
 
-experiment_2_classifiers = {**graham,
-                            **{'SVC': (SVC, svc_params),
-                               'MLPC': (MLPClassifier, mlp_params),
-                               'RFC': (RandomForestClassifier, raf_params),
-                               'AdaBC': (AdaBoostClassifier, ada_params),
-                               'LR': (LinearRegression, [{}]),
-                               'MLPR': (MLPRegressor, mlp_params),
-                               'SVR': (SVR, svc_params),
-                               'AdaBR': (AdaBoostRegressor, ada_params),
-                               'RFR': (RandomForestRegressor, raf_params)
-                               }}
+experiment_2_classifiers = OrderedDict({**graham,
+                                        **{'RFC': (
+                                        RandomForestClassifier, raf_params),
+                                           'RFR': (
+                                           RandomForestRegressor, raf_params),
+                                           'MLPR': (MLPRegressor, mlp_params),
+                                           'MLPC': (MLPClassifier, mlp_params),
+                                           'AdaBR': (
+                                           AdaBoostRegressor, ada_params),
+                                           'AdaBC': (
+                                           AdaBoostClassifier, ada_params),
+                                           'LR': (LinearRegression, [{}]),
+                                           'SVC': (SVC, svc_params),
+                                           'SVR': (SVR, svc_params),
+                                           }})

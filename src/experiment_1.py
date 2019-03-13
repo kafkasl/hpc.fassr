@@ -17,7 +17,8 @@ from utils import save_obj, get_headers, format_line, load_obj, exists_obj, \
 
 def load_prices(prices_list='sp500'):
     prices_file = os.path.join(DATA_PATH, 'prices_' + prices_list)
-    print("Trying to load %s exists? %s" %(prices_file, exists_obj(prices_file)))
+    print("Trying to load %s exists? %s" % (
+    prices_file, exists_obj(prices_file)))
     if exists_obj(prices_file):
         print("Loading from cache:\n * %s" % prices_file)
         prices = load_obj(prices_file)
@@ -49,32 +50,36 @@ def wait_results(results, log=False, datasets=None):
     return clean_results
 
 
-def get_datasets(period_params, symbols_list_name, thresholds, target_shift,
+def get_datasets(period_params, symbols_list_name, thresholds_lst,
+                 target_shift,
                  mode='all'):
     print("Initializing datasets for periods: %s" % period_params)
     datasets = {}
-    for resample_period, magic_number in period_params:
-        normal_name, z_name = get_datasets_name(resample_period,
-                                                symbols_list_name, thresholds,
-                                                target_shift)
+    for thresholds in thresholds_lst:
+        for resample_period, magic_number in period_params:
+            normal_name, z_name = get_datasets_name(resample_period,
+                                                    symbols_list_name,
+                                                    thresholds,
+                                                    target_shift)
 
-        normal_file = os.path.join(DATA_PATH, normal_name)
-        z_file = os.path.join(DATA_PATH, z_name)
+            normal_file = os.path.join(DATA_PATH, normal_name)
+            z_file = os.path.join(DATA_PATH, z_name)
 
-        if exists_obj(normal_file) and exists_obj(z_file):
-            print("Loading from cache:\n * %s\n * %s" % (normal_file, z_file))
-            dfn = load_obj(normal_file)
-            dfz = load_obj(z_file)
-        else:
-            dfn, dfz = get_data(resample_period=resample_period,
-                                symbols_list_name=symbols_list_name,
-                                thresholds=thresholds,
-                                target_shift=target_shift)
+            if exists_obj(normal_file) and exists_obj(z_file):
+                print("Loading from cache:\n * %s\n * %s" % (
+                normal_file, z_file))
+                dfn = load_obj(normal_file)
+                dfz = load_obj(z_file)
+            else:
+                dfn, dfz = get_data(resample_period=resample_period,
+                                    symbols_list_name=symbols_list_name,
+                                    thresholds=thresholds,
+                                    target_shift=target_shift)
 
-        if mode == 'all' or mode == 'normal':
-            datasets[normal_name] = (dfn, magic_number)
-        if mode == 'all' or mode == 'z-score':
-            datasets[z_name] = (dfz, magic_number)
+            if mode == 'all' or mode == 'normal':
+                datasets[normal_name] = (dfn, magic_number, thresholds)
+            if mode == 'all' or mode == 'z-score':
+                datasets[z_name] = (dfz, magic_number, thresholds)
 
     return datasets
 
@@ -102,7 +107,7 @@ if __name__ == '__main__':
                         help='Number of weeks between each trading session'
                              ' (i.e. 4 = trading monthly)')
     parser.add_argument('--trade_mode', type=str, default='sell_all',
-                        choices=['sell_all', 'avoid_fees'])
+                        choices=['all', 'sell_all', 'avoid_fees'])
     parser.add_argument('--datasets', type=str, default='all',
                         choices=['all', 'normal', 'z-score'])
     parser.add_argument('--start_date', type=str, default='2006-01-01',
@@ -114,7 +119,6 @@ if __name__ == '__main__':
                              'cycle. The last one will be used for testing. 53'
                              'means: 52 for training, predict the 53rd.')
 
-
     args = parser.parse_args()
 
     start_date = np.datetime64(args.start_date)
@@ -125,19 +129,15 @@ if __name__ == '__main__':
     trade_final_date = '2018-02-28'
 
     trade_frequency = args.trade_frequency
-    bot_threshold = args.bot_threshold if args.bot_threshold > -66 else -np.inf
-    top_threshold = args.top_threshold if args.top_threshold < 66 else np.inf
-    thresholds = (bot_threshold, top_threshold)
+    # bot_threshold = args.bot_threshold if args.bot_threshold > -66 else -np.inf
+    # top_threshold = args.top_threshold if args.top_threshold < 66 else np.inf
+    # thresholds = (bot_threshold, top_threshold)
 
+    thresholds_list = [(-np.inf, 0.03), (-np.inf, 0.025), (-np.inf, 0.02),
+                       (-np.inf, 0.015),
+                       (-np.inf, 0.01), (-np.inf, 0.005), (-np.inf, 0)]
     experiment = args.experiment
     symbols_list_name = args.symbols
-
-    trading_params = {'k': 1000,
-                      'bot_thresh': bot_threshold,
-                      'top_thresh': top_threshold,
-                      'mode': args.trade_mode,
-                      'trade_frequency': trade_frequency,
-                      'dates': (trade_start_date, trade_final_date)}
 
     period_params = [('1W', args.train_period)]
     classifiers = debug_1_classifiers
@@ -149,6 +149,12 @@ if __name__ == '__main__':
             classifiers = experiment_1_classifiers
         elif experiment == 2:
             classifiers = experiment_2_classifiers
+
+    trade_modes = []
+    if args.trade_mode == 'all' or args.trade_mode == 'sell_all':
+        trade_modes.append('sell_all')
+    elif args.trade_mode == 'all' or args.trade_mode == 'avoid_fees':
+        trade_modes.append('avoid_fees')
 
     results = {}
     prices_file = os.path.join(DATA_PATH, 'prices_sp500')
@@ -162,26 +168,41 @@ if __name__ == '__main__':
 
     datasets = get_datasets(period_params=period_params,
                             symbols_list_name=symbols_list_name,
-                            thresholds=thresholds,
+                            thresholds_lst=thresholds_list,
                             mode=args.datasets,
                             target_shift=trade_frequency)
 
     # Log some execution information for easy access
-    print("Models to train:")
+    print("Models to train: [%s]" % len(classifiers))
     pprint(classifiers)
     print("Datasets created: %s" % (datasets.keys()))
     print("Args: %s" % args)
 
     total_jobs = 0
-    for dataset_name, (df, magic_number) in datasets.items():
-        results[dataset_name], jobs = explore_models(classifiers=classifiers,
-                                                     df=df, prices=prices,
-                                                     dataset_name=dataset_name,
-                                                     magic_number=magic_number,
-                                                     save_path=save_path,
-                                                     trading_params=trading_params,
-                                                     dates=dates)
-        total_jobs += jobs
+
+    trading_params = {'k': 1000,
+                      'bot_thresh': args.bot_threshold,
+                      'top_thresh': args.top_threshold,
+                      'mode': args.trade_mode,
+                      'trade_frequency': trade_frequency,
+                      'dates': (trade_start_date, trade_final_date)}
+
+    for mode in trade_modes:
+        for dataset_name, (df, magic_number, (thresholds)) in datasets.items():
+
+            trading_params['bot_thresh'] = thresholds[0]
+            trading_params['top_thresh'] = thresholds[1]
+            trading_params['mode'] = mode
+
+            results[dataset_name], jobs = explore_models(
+                classifiers=classifiers,
+                df=df, prices=prices,
+                dataset_name=dataset_name,
+                magic_number=magic_number,
+                save_path=save_path,
+                trading_params=trading_params,
+                dates=dates)
+            total_jobs += jobs
 
     print("%s get data tasks launched, proceeding to: wait for the results." %
           (4 * len(datasets)))
@@ -191,11 +212,11 @@ if __name__ == '__main__':
 
     print(get_headers(trading_params))
     clean_results = wait_results(results, log=True, datasets=datasets)
+    total_time = time()
 
     save_obj(clean_results,
              os.path.join(save_path, 'clean_results_%s_%s' % (
                  symbols_list_name, uuid4().hex[:8])))
 
     print(clean_results)
-    total_time = time()
     print("Total time: %.3f" % (total_time - start_time))
