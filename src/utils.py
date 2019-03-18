@@ -176,8 +176,8 @@ def plot_scp():
     mlpc = get_trend('clean_results_sp437_2bb95299', 1413316.4, 'NN')
     svc = get_trend('clean_results_sp437_2bb95299', 1317296.2, 'SVC')
     rfc = get_trend('clean_results_sp437_1feda273', 629870.5, 'RFC')
-    adaboost = get_trend('clean_results_sp437_41cb0e58', 620100.8,'AdaBoost')
-    graham = get_trend('clean_results_sp437_2bb95299', 547199.6,'Graham')
+    adaboost = get_trend('clean_results_sp437_41cb0e58', 620100.8, 'AdaBoost')
+    graham = get_trend('clean_results_sp437_2bb95299', 547199.6, 'Graham')
 
     df = pd.concat([mlpc, svc, rfc, adaboost, graham], axis=1).interpolate()
     df.index = pd.to_datetime(df.index)

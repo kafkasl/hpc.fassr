@@ -190,6 +190,7 @@ if __name__ == '__main__':
     for mode in trade_modes:
         for dataset_name, (df, magic_number, (thresholds)) in datasets.items():
 
+            trading_params = dict(trading_params)
             trading_params['bot_thresh'] = thresholds[0]
             trading_params['top_thresh'] = thresholds[1]
             trading_params['mode'] = mode

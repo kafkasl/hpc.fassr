@@ -11,7 +11,7 @@ from pycompss.api.task import task
 
 from models.classifiers import *
 from models.classifiers import train_attrs as attrs
-from settings.basic import CACHE_PATH, DATE_FORMAT
+from settings.basic import CACHE_PATH, DATE_FORMAT, CHECKPOINTING
 from trading.trade import model_trade, graham_trade, debug_trade
 from utils import load_obj, save_obj, dict_to_str
 
@@ -104,11 +104,15 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
         sys.stdout.flush()
 
         clf_cached_file = cached_file + str(indices[idx])[:10]
-        try:
-            clf = load_obj(clf_cached_file)
-        except:
+
+        if not CHECKPOINTING:
             clf = clf_class(**model_params).fit(train_x, train_y)
-            save_obj(clf, clf_cached_file)
+        else:
+            try:
+                clf = load_obj(clf_cached_file)
+            except:
+                clf = clf_class(**model_params).fit(train_x, train_y)
+                save_obj(clf, clf_cached_file)
 
         pred = clf.predict(test_x)
 

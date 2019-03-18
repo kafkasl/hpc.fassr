@@ -64,7 +64,7 @@ m_solver = [{'solver': s} for s in ['lbfgs', 'adam']]
 mlp_params = [{**d1, **d2} for d1, d2 in product(n_h, m_solver)]
 
 # using 250, 500 or 1000 yielded similar results
-raf_params = [{'n_estimators': i, 'n_jobs': 25} for i in [50, 100, 250, 500]]
+raf_params = [{'n_estimators': i, 'n_jobs': 48} for i in [50, 100, 250, 500]]
 ada_params = [{'n_estimators': i} for i in [50, 100]]
 gbc_params = [{'n_estimators': i} for i in [50, 100]]
 
@@ -98,16 +98,20 @@ experiment_1_classifiers = {**graham,
 
 experiment_2_classifiers = OrderedDict({**graham,
                                         **{'RFC': (
-                                        RandomForestClassifier, raf_params),
-                                           'RFR': (
-                                           RandomForestRegressor, raf_params),
-                                           'MLPR': (MLPRegressor, mlp_params),
-                                           'MLPC': (MLPClassifier, mlp_params),
-                                           'AdaBR': (
-                                           AdaBoostRegressor, ada_params),
-                                           'AdaBC': (
-                                           AdaBoostClassifier, ada_params),
-                                           'LR': (LinearRegression, [{}]),
-                                           'SVC': (SVC, svc_params),
-                                           'SVR': (SVR, svc_params),
-                                           }})
+                                            RandomForestClassifier,
+                                            raf_params),
+                                            'RFR': (
+                                                RandomForestRegressor,
+                                                raf_params),
+                                            'AdaBR': (
+                                                AdaBoostRegressor, ada_params),
+                                            'AdaBC': (
+                                                AdaBoostClassifier,
+                                                ada_params),
+                                            'MLPR': (MLPRegressor, mlp_params),
+                                            'MLPC': (
+                                            MLPClassifier, mlp_params),
+                                            'LR': (LinearRegression, [{}]),
+                                            'SVC': (SVC, svc_params),
+                                            'SVR': (SVR, svc_params),
+                                        }})

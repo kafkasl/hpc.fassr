@@ -45,6 +45,7 @@ intrinio_password = 'c4daefffaf7ea875949468c0db69d256'
 
 # Cache config
 CACHE_ENABLED = True
+CHECKPOINTING = True
 
 if socket.gethostname() == 'Marginis':
     CACHE_PATH = os.path.join(PROJECT_ROOT, "cache")
