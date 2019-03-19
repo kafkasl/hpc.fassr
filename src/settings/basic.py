@@ -1,6 +1,4 @@
 import os
-import logging
-import sys
 import socket
 
 # Paths configuration
@@ -38,7 +36,6 @@ DATE_FORMAT = "%Y-%m-%d"
 # rootLogger.setLevel(logging.INFO)
 debug = False
 
-
 # Intrinio API
 intrinio_username = '537b80f5966d25d2caaaba7e14adbd5d'
 intrinio_password = 'c4daefffaf7ea875949468c0db69d256'
@@ -54,3 +51,9 @@ if socket.gethostname() == 'Marginis':
 else:  # we are in MN4
     CACHE_PATH = "/gpfs/scratch/bsc19/compss/COMPSs_Sandbox/bsc19277/ydra/cache"
     INTRINIO_CACHE_PATH = os.path.join(CACHE_PATH, "intrinio")
+    project = os.path.realpath(__file__).split('/')[-4]
+    if 'ydra' not in project:
+        print(
+            "ydra keyword not present in comparison to [%s], probably comparing the wrong folder." % project)
+    if project == 'ydra-test':
+        CHECKPOINTING = False
