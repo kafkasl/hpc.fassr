@@ -42,18 +42,19 @@ intrinio_password = 'c4daefffaf7ea875949468c0db69d256'
 
 # Cache config
 CACHE_ENABLED = True
-CHECKPOINTING = True
+CHECKPOINTING = False
 
 if socket.gethostname() == 'Marginis':
     CACHE_PATH = os.path.join(PROJECT_ROOT, "cache")
     INTRINIO_CACHE_PATH = os.path.join(CACHE_PATH, "intrinio")
-
+    CHECKPOINTING = True
 else:  # we are in MN4
     CACHE_PATH = "/gpfs/scratch/bsc19/compss/COMPSs_Sandbox/bsc19277/ydra/cache"
     INTRINIO_CACHE_PATH = os.path.join(CACHE_PATH, "intrinio")
     project = os.path.realpath(__file__).split('/')[-4]
+    CHECKPOINTING = True
     if 'ydra' not in project:
         print(
             "ydra keyword not present in comparison to [%s], probably comparing the wrong folder." % project)
-    if project == 'ydra-test':
+    if project == 'ydra-test' or project == 'ydra-3':
         CHECKPOINTING = False

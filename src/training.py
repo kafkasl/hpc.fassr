@@ -8,11 +8,12 @@ import numpy as np
 import pandas as pd
 from pycompss.api.constraint import constraint
 from pycompss.api.task import task
+from sklearn.preprocessing import StandardScaler
 
 from models.classifiers import *
 from models.classifiers import train_attrs as attrs
 from settings.basic import CACHE_PATH, DATE_FORMAT, CHECKPOINTING
-from trading.trade import model_trade, graham_trade, debug_trade
+from trading.trade import model_trade, graham_trade, debug_trade, random_trade
 from utils import load_obj, save_obj, dict_to_str
 
 try:
@@ -38,7 +39,7 @@ def save(items, filename, path):
     fig.savefig("%s.png" % file_path)
 
 
-def get_regression_data(df, attrs, indices, idx, magic_number):
+def get_regression_data(clf, df, attrs, indices, idx, magic_number):
     train = df.loc[indices[idx]:indices[idx + magic_number - 1]]
 
     test_idx = indices[idx + magic_number]
@@ -49,10 +50,15 @@ def get_regression_data(df, attrs, indices, idx, magic_number):
     train_x, train_y = train[attrs], train.y
     test_x, test_y = test[attrs], test.y
 
+    if 'MLP' in clf:
+        scaler = StandardScaler().fit(train_x)
+        train_x = scaler.transform(train_x)
+        test_x = scaler.transform(test_x)
+
     return train_x, train_y, test_x, test_y
 
 
-def get_classification_data(df, attrs, indices, idx, magic_number):
+def get_classification_data(clf, df, attrs, indices, idx, magic_number):
     train = df.loc[indices[idx]:indices[idx + magic_number - 1]]
 
     test_idx = indices[idx + magic_number]
@@ -62,6 +68,11 @@ def get_classification_data(df, attrs, indices, idx, magic_number):
 
     train_x, train_y = train[attrs], train.positions
     test_x, test_y = test[attrs], test.positions
+
+    if 'MLP' in clf:
+        scaler = StandardScaler().fit(train_x)
+        train_x = scaler.transform(train_x)
+        test_x = scaler.transform(test_x)
 
     return train_x, train_y, test_x, test_y
 
@@ -77,7 +88,7 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
         mode, magic_number,
         pd.to_datetime(dates[0], format=DATE_FORMAT).date(),
         pd.to_datetime(dates[1], format=DATE_FORMAT).date())
-    cached_file = os.path.join(CACHE_PATH, name)
+    cached_file = os.path.join(CACHE_PATH + '/models/', name)
 
     start_date, final_date = dates
     idx = 0
@@ -93,11 +104,13 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
 
         if mode == CLASSIFICATION:
             train_x, train_y, test_x, test_y = \
-                get_classification_data(df, attrs, indices, idx, magic_number)
+                get_classification_data(clf_name, df, attrs, indices, idx,
+                                        magic_number)
         elif mode == REGRESSION:
             # get regression datasets (target is float y -> ratio of increase)
             train_x, train_y, test_x, test_y = \
-                get_regression_data(df, attrs, indices, idx, magic_number)
+                get_regression_data(clf_name, df, attrs, indices, idx,
+                                    magic_number)
 
         print("Training %s/%s with %s instances." % (
             idx // trade_freq, len(indices) // trade_freq, train_x.shape[0]))
@@ -116,10 +129,11 @@ def train(df, attrs, clf_class, clf_name, model_params, mode, magic_number,
 
         pred = clf.predict(test_x)
 
+        # import ipdb
+        # ipdb.set_trace()
         df.loc[indices[idx + magic_number], clf_name] = pred
 
         idx += trade_freq
-
     df_trade = df.dropna(axis=0)
 
     print("Finished training for %s" % (clf_name))
@@ -241,27 +255,34 @@ def run_debug(clf, clf_name, model_params, df, prices, dataset_name,
     return (portfolios, total_time)
 
 
-# TODO: refactor for experiment 2
-# @task(returns=dict)
-# def run_random(clf, clf_name, model_params, df, prices, dataset_name,
-#                magic_number, mode, trading_params):
-#     print("Running random with dataset: %s" % dataset_name)
-#
-#     df_trade = train(df, attrs, clf, clf_name, model_params, mode,
-#                      magic_number)
-#
-#     print("DF trade:")
-#     full_print(df_trade)
-#     portfolios = random_trade(df_trade, prices=prices,
-#                               clf_name=clf_name, trading_params=trading_params)
-#     print(get_headers(trading_params=trading_params))
-#     print(format_line(dataset_name, clf_name, magic_number,
-#                       trading_params,
-#                       model_params, portfolios))
-#     return portfolios
+@task(returns=2)
+def run_random(clf, clf_name, model_params, df, prices, dataset_name,
+               magic_number, mode, trading_params, dates):
+    start = time()
+    if tracing:
+        pro_f = sys.getprofile()
+        sys.setprofile(None)
 
+    start_date = np.datetime64(dates[0])
+    final_date = np.datetime64(dates[1])
+    indices = sorted(
+        [day for day in list(set(df.index.values)) if
+         start_date <= day <= final_date])
+    # we add the offset of the training data which ain't required for Graham
+    indices = indices[magic_number:]
+    indices = [indices[i] for i in
+               range(0, len(indices), trading_params['trade_frequency'])]
+    print("Running debug with dataset: %s" % dataset_name)
 
+    portfolios = random_trade(df_trade=df, indices=indices, prices=prices,
+                              clf_name=clf_name,
+                              trading_params=trading_params, dates=dates)
+    total_time = time() - start
 
+    if tracing:
+        sys.setprofile(pro_f)
+
+    return (portfolios, total_time)
 
 
 def explore_models(classifiers, df, prices, dataset_name, save_path,
@@ -282,9 +303,9 @@ def explore_models(classifiers, df, prices, dataset_name, save_path,
             elif clf_name in cat_classifiers.keys():
                 mode = CLASSIFICATION
                 run = run_classification_model
-            # elif clf_name == 'random':
-            #     mode = REGRESSION
-            #     run = run_random
+            elif clf_name == 'random':
+                mode = REGRESSION
+                run = run_random
             elif clf_name == 'graham':
                 run = run_graham
                 mode = REGRESSION

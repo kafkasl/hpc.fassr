@@ -149,7 +149,7 @@ def process_symbol(symbol, df_fund, df_prices, sic_code, sic_industry,
                        bvps=ds.bookvaluepershare,
                        # Target
                        y=(df_prices.loc[symbol].price.shift(
-                           target_shift) / ds.price) - 1,
+                           -target_shift) / ds.price) - 1,
                        positions=lambda r: pd.cut(r.y, bins).cat.codes - 1,
                        )
                .set_index('symbol', append=True))
@@ -184,7 +184,6 @@ def process_symbols(available_symbols, df_fund, df_prices, sic_code,
 
 @task(returns=2)
 def post_process(df, files):
-    # TODO:  there is a paper where they said how to build the survivor bias list
     if tracing:
         pro_f = sys.getprofile()
         sys.setprofile(None)

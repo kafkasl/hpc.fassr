@@ -107,5 +107,9 @@ venv.bak/
 # idea
 .idea
 
-# virtualevn
-fass
+data
+*.pgz
+*.png
+set-0
+bkp
+cache

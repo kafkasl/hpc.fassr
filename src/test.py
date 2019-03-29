@@ -4,7 +4,7 @@ from time import time
 
 import numpy as np
 
-from experiment_1 import get_datasets, wait_results, load_prices
+from fassr import get_datasets, wait_results, load_prices
 from models.classifiers import *
 from settings.basic import PROJECT_ROOT
 from training import explore_models
@@ -60,8 +60,9 @@ class YdraTest(unittest.TestCase):
         prices = load_prices('sp500')
         top_threshold = 0.03
         bot_threshold = -np.inf
-        thresholds = (bot_threshold, top_threshold)
-        clfs = [{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}, graham, debug]
+        thresholds_lst = [(bot_threshold, top_threshold)]
+        # clfs = [{'SVC': (SVC, [{'C': 0.125, 'gamma': 0.125}])}, graham, debug]
+        clfs = [debug]
         totals = defaultdict(list)
         for classifiers in clfs:
             for trade_mode in ['sell_all', 'avoid_fees']:
@@ -72,18 +73,20 @@ class YdraTest(unittest.TestCase):
 
                 datasets = get_datasets(period_params=period_params,
                                         symbols_list_name=symbols_list_name,
-                                        thresholds=thresholds,
+                                        thresholds_lst=thresholds_lst,
                                         mode=dataset,
                                         target_shift=trade_frequency)
 
-                trading_params = {'k': 1000,
-                                  'bot_thresh': bot_threshold,
-                                  'top_thresh': top_threshold,
-                                  'mode': trade_mode,
-                                  'trade_frequency': trade_frequency,
-                                  'dates': (trade_start_date, trade_final_date)}
 
-                for dataset_name, (df, magic_number) in datasets.items():
+
+                for dataset_name, (df, magic_number, thresholds) in datasets.items():
+                    trading_params = {'k': 1000,
+                                      'bot_thresh': thresholds[0],
+                                      'top_thresh': thresholds[1],
+                                      'mode': trade_mode,
+                                      'trade_frequency': trade_frequency,
+                                      'dates': (
+                                      trade_start_date, trade_final_date)}
                     results[dataset_name], _ = explore_models(classifiers=classifiers,
                                                               df=df, prices=prices,
                                                               dataset_name=dataset_name,
@@ -108,18 +111,19 @@ class YdraTest(unittest.TestCase):
 
                 datasets = get_datasets(period_params=period_params,
                                         symbols_list_name=symbols_list_name,
-                                        thresholds=thresholds,
+                                        thresholds_lst=thresholds_lst,
                                         mode=dataset,
                                         target_shift=trade_frequency)
 
-                trading_params = {'k': 1000,
-                                  'bot_thresh': bot_threshold,
-                                  'top_thresh': top_threshold,
-                                  'mode': trade_mode,
-                                  'trade_frequency': trade_frequency,
-                                  'dates': (trade_start_date, trade_final_date)}
+                for dataset_name, (df, magic_number, thresholds) in datasets.items():
+                    trading_params = {'k': 1000,
+                                      'bot_thresh': thresholds[0],
+                                      'top_thresh': thresholds[1],
+                                      'mode': trade_mode,
+                                      'trade_frequency': trade_frequency,
+                                      'dates': (
+                                      trade_start_date, trade_final_date)}
 
-                for dataset_name, (df, magic_number) in datasets.items():
                     results[dataset_name], _ = explore_models(classifiers=classifiers,
                                                               df=df, prices=prices,
                                                               dataset_name=dataset_name,
@@ -148,7 +152,7 @@ class YdraTest(unittest.TestCase):
             k, 'OK' if ok else 'FAILED'))
             if not ok:
                 print(v)
-            ok = v[0] == expected[k]
+            ok = int(v[0]) == int(expected[k])
             # self.assertTrue(ok)
             print("Test final result %s: %s" % (k, 'OK' if ok else 'FAILED'))
             if not ok:

@@ -24,8 +24,7 @@ def debug_selector(df_trade, day, clf_name, trading_params):
 
 
 def get_k_best(df_trade, day, clf_name, trading_params):
-    # import ipdb
-    # ipdb.set_trace()
+
     # sort by predicted increment per stock of classifier clf_name
     df_clf = df_trade[['y', clf_name, 'symbol', 'price']]
     df_aux = df_clf.loc[[day]].sort_values(clf_name)
@@ -37,16 +36,19 @@ def get_k_best(df_trade, day, clf_name, trading_params):
     botk = df_aux.iloc[0:k].query('%s<%s' % (clf_name, bot_thresh))
     topk = df_aux.iloc[-k - 1: -1].query('%s>%s' % (clf_name, top_thresh))
 
+    # import ipdb
+    # ipdb.set_trace()
     return topk, botk
 
 
 def get_k_random(df_trade, day, clf_name, trading_params):
-    df_trade = df_trade[['y', clf_name, 'symbol', 'price']]
+    df_trade = df_trade[['y', 'y', 'symbol', 'price']]
     k = trading_params['k']
 
-    sample_size = min(len(df_trade), k)
-    topk = df_trade.sample(n=sample_size)
-    botk = df_trade.sample(n=sample_size)
+    sample_size = min(len(df_trade), 2*k)
+    samples = df_trade.sample(n=sample_size)
+    topk = samples.iloc[:len(samples)//2]
+    botk = samples.iloc[len(samples)//2:]
     return topk, botk
 
 
@@ -87,6 +89,8 @@ def graham_screening(df_trade, day, clf_name, trading_params):
             continue
 
         # TODO where is the 2 * assets > liabilities
+
+        succesful &= day_info.currentratio > 2
         succesful &= day_info.revenue > 1500000000
         succesful &= day_info.wc > 0
         succesful &= (df_aux_y.eps > 0).sum() == row_years
@@ -129,6 +133,8 @@ def update_positions_buy_sell_all(prices, day, available_money, positions,
             same_positions &= p.symbol in list(topk.symbol)
         elif p.is_short():
             same_positions &= p.symbol in list(botk.symbol)
+        if not same_positions:
+            break
     # The new positions are equal to the old ones, avoid fees by returning same
     # positions and available money.
     if same_positions:
@@ -156,10 +162,12 @@ def update_positions_buy_sell_all(prices, day, available_money, positions,
             except Exception as e:
                 # This happens when we try to trade on a weekend or similar,
                 # we just use last close price.
-                # print("New price for %s not available using last." % p.symbol)
+                print("New price for %s not available using last." % p.symbol)
                 current_price = p.current_price
 
             # we sell the positions that we do not continue
+            # import ipdb
+            # ipdb.set_trace()
             available_money += p.sell(current_price)
 
         # Buy all new positions
@@ -320,6 +328,11 @@ def model_trade(df_trade, indices, prices, clf_name, trading_params: dict, dates
 #
 #     return portfolios
 
+
+def random_trade(df_trade, indices, prices, clf_name, trading_params, dates):
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
+                       trading_params=trading_params,
+                       selector_f=get_k_random)
 
 def debug_trade(df_trade, indices, prices, clf_name, trading_params, dates):
     return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,

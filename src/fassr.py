@@ -18,7 +18,7 @@ from utils import save_obj, get_headers, format_line, load_obj, exists_obj, \
 def load_prices(prices_list='sp500'):
     prices_file = os.path.join(DATA_PATH, 'prices_' + prices_list)
     print("Trying to load %s exists? %s" % (
-    prices_file, exists_obj(prices_file)))
+        prices_file, exists_obj(prices_file)))
     if exists_obj(prices_file):
         print("Loading from cache:\n * %s" % prices_file)
         prices = load_obj(prices_file)
@@ -41,7 +41,7 @@ def wait_results(results, log=False, datasets=None):
                 portfolios[clf_name][i] = (model_params, trading_params, res)
                 if log:
                     print(format_line(dataset_name, clf_name,
-                                      datasets[dataset_name][1],
+                                      datasets[dataset_name.split(':')[0]][1],
                                       trading_params,
                                       model_params, pfs, total_time))
                 params = (dataset_name, clf_name, model_params, trading_params,
@@ -67,7 +67,7 @@ def get_datasets(period_params, symbols_list_name, thresholds_lst,
 
             if exists_obj(normal_file) and exists_obj(z_file):
                 print("Loading from cache:\n * %s\n * %s" % (
-                normal_file, z_file))
+                    normal_file, z_file))
                 dfn = load_obj(normal_file)
                 dfz = load_obj(z_file)
             else:
@@ -84,6 +84,40 @@ def get_datasets(period_params, symbols_list_name, thresholds_lst,
     return datasets
 
 
+def get_exp_specific_data(debug: bool, experiment: int):
+    if debug:
+        return debug_1_classifiers, [(0, 0)]
+
+    if experiment == 1:
+        return exp_1_classifiers, [(-np.inf, 0.03), (-np.inf, 0.025),
+                                   (-np.inf, 0.02), (-np.inf, 0.015),
+                                   (-np.inf, 0.01), (-np.inf, 0.005),
+                                   (-np.inf, 0)]
+
+    elif experiment == 2:
+        return exp_2_classifiers, [(-0.03, np.inf), (-0.02, np.inf),
+                                   (-0.01, np.inf), (0, np.inf),
+                                   (-np.inf, 0.03), (-np.inf, 0.02),
+                                   (-np.inf, 0.01), (-np.inf, 0), (-0.03, 0.03),
+                                   (-0.02, 0.02), (-0.01, 0.01), (0,0)]
+
+    elif experiment == 3:
+        return exp_3_classifiers, [(-0.03, np.inf), (-0.02, np.inf),
+                                   (-0.01, np.inf), (0, np.inf),
+                                   (-np.inf, 0.03), (-np.inf, 0.02),
+                                   (-np.inf, 0.01), (-np.inf, 0), (-0.03, 0.03),
+                                   (-0.02, 0.02), (-0.01, 0.01), (0,0)]
+
+
+def get_trade_mode(trade_mode: str):
+    trade_modes = []
+    if trade_mode == 'all' or trade_mode == 'sell_all':
+        trade_modes.append('sell_all')
+    if trade_mode == 'all' or trade_mode == 'avoid_fees':
+        trade_modes.append('avoid_fees')
+    return trade_modes
+
+
 if __name__ == '__main__':
     start_time = time()
     parser = argparse.ArgumentParser()
@@ -91,19 +125,11 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--debug', action='store_true', default=False)
     parser.add_argument('--save_path', type=str, default=PROJECT_ROOT)
     parser.add_argument('-s,', '--symbols', type=str, default='sp437')
-    parser.add_argument('--bot_threshold', type=float, default=-0.015,
-                        help='Bottom threshold used to create '
-                             'categorical y labels, and trading'
-                             ' threshold in ranking. -66 indicates'
-                             ' a -np.inf threshold')
-    parser.add_argument('--top_threshold', type=float, default=0.015,
-                        help='Top threshold used to create '
-                             'categorical y labels, and trading'
-                             ' threshold in ranking. 66 indicates'
-                             ' a np.inf threshold'
-                        )
+    
     parser.add_argument('--experiment', type=int, default=1)
-    parser.add_argument('--trade_frequency', type=int, default=4,
+    parser.add_argument('-k', type=int, default=1000,
+                        help='Number of top/bot stocks to pick when doing ranking (experiment 3).')
+    parser.add_argument('-f', '--trade_frequency', type=int, default=4,
                         help='Number of weeks between each trading session'
                              ' (i.e. 4 = trading monthly)')
     parser.add_argument('--trade_mode', type=str, default='sell_all',
@@ -121,51 +147,23 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # Get all inputs and parameters
     start_date = np.datetime64(args.start_date)
     final_date = np.datetime64(args.final_date)
     dates = (start_date, final_date)
-
     trade_start_date = '2009-03-03'
     trade_final_date = '2018-02-28'
-
     trade_frequency = args.trade_frequency
-    # bot_threshold = args.bot_threshold if args.bot_threshold > -66 else -np.inf
-    # top_threshold = args.top_threshold if args.top_threshold < 66 else np.inf
-    # thresholds = (bot_threshold, top_threshold)
-
-    thresholds_list = [(-np.inf, 0.03), (-np.inf, 0.025), (-np.inf, 0.02),
-                       (-np.inf, 0.015),
-                       (-np.inf, 0.01), (-np.inf, 0.005), (-np.inf, 0)]
-    experiment = args.experiment
+    exp = args.experiment
     symbols_list_name = args.symbols
-
     period_params = [('1W', args.train_period)]
-    classifiers = debug_1_classifiers
     save_path = args.save_path
+    classifiers, thresholds_list = get_exp_specific_data(args.debug, exp)
+    trade_modes = get_trade_mode(args.trade_mode)
 
-    if not args.debug:
-
-        if experiment == 1:
-            classifiers = experiment_1_classifiers
-        elif experiment == 2:
-            classifiers = experiment_2_classifiers
-
-    trade_modes = []
-    if args.trade_mode == 'all' or args.trade_mode == 'sell_all':
-        trade_modes.append('sell_all')
-    elif args.trade_mode == 'all' or args.trade_mode == 'avoid_fees':
-        trade_modes.append('avoid_fees')
-
-    results = {}
-    prices_file = os.path.join(DATA_PATH, 'prices_sp500')
-    if exists_obj(prices_file):
-        print("Loading from cache:\n * %s" % prices_file)
-        prices = load_obj(prices_file)
-    else:
-        prices = get_prices(symbols_list_name='sp500',
-                            resample_period='1D', only_prices=True)
-        save_obj(prices, prices_file)
-
+    # Load prices
+    prices = load_prices()
+    # Preprocess datasets
     datasets = get_datasets(period_params=period_params,
                             symbols_list_name=symbols_list_name,
                             thresholds_lst=thresholds_list,
@@ -175,49 +173,42 @@ if __name__ == '__main__':
     # Log some execution information for easy access
     print("Models to train: [%s]" % len(classifiers))
     pprint(classifiers)
-    print("Datasets created: %s" % (datasets.keys()))
-    print("Args: %s" % args)
+    print("Datasets created: %s\nArgs: %s" % (datasets.keys(), args))
 
+    results = {}
     total_jobs = 0
-
-    trading_params = {'k': 1000,
-                      'bot_thresh': args.bot_threshold,
-                      'top_thresh': args.top_threshold,
-                      'mode': args.trade_mode,
-                      'trade_frequency': trade_frequency,
-                      'dates': (trade_start_date, trade_final_date)}
+    trading_params = {}
 
     for mode in trade_modes:
         for dataset_name, (df, magic_number, (thresholds)) in datasets.items():
+            trading_params = {'k': args.k,
+                              'bot_thresh': thresholds[0],
+                              'top_thresh': thresholds[1],
+                              'mode': mode,
+                              'trade_frequency': trade_frequency,
+                              'dates': (trade_start_date, trade_final_date)}
 
-            trading_params = dict(trading_params)
-            trading_params['bot_thresh'] = thresholds[0]
-            trading_params['top_thresh'] = thresholds[1]
-            trading_params['mode'] = mode
-
-            results[dataset_name], jobs = explore_models(
-                classifiers=classifiers,
-                df=df, prices=prices,
-                dataset_name=dataset_name,
-                magic_number=magic_number,
-                save_path=save_path,
-                trading_params=trading_params,
+            results[dataset_name + ':' + mode], jobs = explore_models(
+                classifiers=classifiers, df=df, prices=prices,
+                dataset_name=dataset_name, magic_number=magic_number,
+                save_path=save_path, trading_params=trading_params,
                 dates=dates)
             total_jobs += jobs
 
-    print("%s get data tasks launched, proceeding to: wait for the results." %
-          (4 * len(datasets)))
+    # Log information about the execution
     print(
-        "%s training tasks launched, proceeding to: wait for the results." % total_jobs)
-    print("Total expected jobs: %s" % (1 + 4 * len(datasets) + total_jobs))
+        "Tasks launched: \n\t* Get data: %s\n\t* Training: %s\n\t* Total: %s" %
+        (4 * len(datasets), total_jobs, 1 + 4 * len(datasets) + total_jobs))
 
+    # Print the models performance as the tasks finish.
     print(get_headers(trading_params))
     clean_results = wait_results(results, log=True, datasets=datasets)
     total_time = time()
 
-    save_obj(clean_results,
-             os.path.join(save_path, 'clean_results_%s_%s' % (
-                 symbols_list_name, uuid4().hex[:8])))
+    # Save the py object containing all Portfolios for each model.
+    save_obj(clean_results, os.path.join(save_path, 'clean_results_%s_%s' % (
+        symbols_list_name, uuid4().hex[:8])))
 
+    # Print each portfolio per trading session for each model.
     print(clean_results)
     print("Total time: %.3f" % (total_time - start_time))

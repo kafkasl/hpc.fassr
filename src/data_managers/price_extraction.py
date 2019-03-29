@@ -1,4 +1,5 @@
 from string import Template
+
 import pandas as pd
 
 from settings.basic import DATE_FORMAT
@@ -67,7 +68,6 @@ class PriceExtractor(object):
             dfs.append(
                 self._get_symbol_prices(symbol=symbol))
 
-
         return pd.concat(dfs)
 
 
@@ -78,7 +78,6 @@ if __name__ == "__main__":
     # df = PriceExtractor(symbols_list_name=symbols_list_name,
     #                     start_date=start_date).collect()
 
-    import numpy as np
     import fix_yahoo_finance as yf
 
     symbols = load_symbol_list(symbols_list_name)

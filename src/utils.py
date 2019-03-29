@@ -3,8 +3,11 @@ import gzip
 import json
 import os
 import pickle
+from glob import glob
 from urllib.parse import urlparse
 
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
@@ -160,24 +163,81 @@ def plot_2_axis():
     ax2.set_yscale('log')
 
 
-def to_df_col(pfs, name):
-    index = [p._day_str for p in pfs]
-    data = [p.total_money for p in pfs]
-    return pd.DataFrame(data=data, index=index, columns=[name])
 
-
-def get_trend(file, price, name):
+def load_trend(file, price, name):
     res = load_obj(file)
     res = [r for r in res if '%.1f' % r[1][-1].total_money == str(price)]
     return to_df_col(res[0][1], name)
 
 
+def get_trend(results, price, name):
+    res = []
+    # from glob import glob
+    # for file in glob('*/clean_results_*'):
+    #     import ipdb
+    #     ipdb.set_trace()
+    # result = load_obj(file[:-4])
+    for result in results:
+        res.extend(
+            [r for r in result if '%.1f' % r[1][-1].total_money == str(price)])
+    # del result
+    if len(res) == 0:
+        print("No results found")
+        return
+    # break
+    return to_df_col(res[0][1], name)
+
+
+def load_all(experiment):
+    from glob import glob
+    results = []
+    for file in glob('%s/*/clean_results_*' % experiment):
+        print("loading: %s" % file)
+        results.append(load_obj(file[:-4]))
+
+    return results
+
+
+def new_plot(file, experiment):
+    cols = ["dataset", "period", "clf", "magic", "model_params", "k",
+            "bot_thresh", "top_thresh", "mode", "trade_frequency",
+            "start_trade", "final_trade", "time", "min", "max", "mean", "last"]
+
+    results = load_all(experiment)
+    r1 = pd.read_csv(file, names=cols).sort_values('last').drop('time',
+                                                                1).drop_duplicates()
+    best = r1.groupby('clf')[['last']].max()
+
+    sp500 = pd.read_csv('sp500.csv').set_index('Date')
+    sp500.index = pd.to_datetime(sp500.index)
+    sp500 = sp500[['Adj Close']].rename(columns={'Adj Close': 'S&P 500'})
+    ratio = 100000 / sp500.iloc[0]
+
+    trends = []
+    names = ['AdaBoost', 'NN', 'RF', 'SVM', 'Graham', 'S&P 500']
+    for i, (clf, price) in enumerate(best.itertuples()):
+        trends.append(get_trend(results, price, names[i]))
+
+    sptrend = sp500 * ratio
+    sptrend = sptrend.resample('1W').last()
+    sptrend = sptrend[sptrend.index.isin(trends[0].index)]
+    trends.append(sptrend)
+    df = pd.concat(trends, axis=1).interpolate()
+
+    df.index = pd.to_datetime(df.index)
+
+    return df
+
+
+
+
+
 def plot_scp():
-    mlpc = get_trend('clean_results_sp437_2bb95299', 1413316.4, 'NN')
-    svc = get_trend('clean_results_sp437_2bb95299', 1317296.2, 'SVC')
-    rfc = get_trend('clean_results_sp437_1feda273', 629870.5, 'RFC')
-    adaboost = get_trend('clean_results_sp437_41cb0e58', 620100.8, 'AdaBoost')
-    graham = get_trend('clean_results_sp437_2bb95299', 547199.6, 'Graham')
+    mlpc = load_trend('clean_results_sp437_2bb95299', 1413316.4, 'NN')
+    svc = load_trend('clean_results_sp437_2bb95299', 1317296.2, 'SVC')
+    rfc = load_trend('clean_results_sp437_1feda273', 629870.5, 'RFC')
+    adaboost = load_trend('clean_results_sp437_41cb0e58', 620100.8, 'AdaBoost')
+    graham = load_trend('clean_results_sp437_2bb95299', 547199.6, 'Graham')
 
     df = pd.concat([mlpc, svc, rfc, adaboost, graham], axis=1).interpolate()
     df.index = pd.to_datetime(df.index)

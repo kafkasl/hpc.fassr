@@ -32,6 +32,10 @@ class Portfolio(object):
         return np.sum([p.net_value for p in self.positions])
 
     @property
+    def money_after_sell(self) -> float:
+        return self.cash + np.sum([p.net_value for p in self.positions])
+
+    @property
     def fees(self) -> float:
         return np.sum([p.fees for p in self.positions])
 
