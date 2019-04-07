@@ -42,7 +42,7 @@ def plot_by_model(results):
                    'AdaBoost']
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns per model')
+    fig.canvas.set_window_title('Revenues per model')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5)
@@ -58,9 +58,9 @@ def plot_by_model(results):
 
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of total returns for different models')
+    ax1.set_title('Comparison of total revenues for different models')
     ax1.set_xlabel('Models')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
     ax1.axhline(y=276480 / 1e6, color='red', linestyle='--', alpha=0.4)
     # ax1.get_yaxis().set_major_formatter(
     #     matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -202,7 +202,7 @@ def plot_historicals(df):
     df[regs].rename(
         columns={regs[i]: names[i] for i in range(len(regs))}).plot(ax=axes[1])
 
-    [ax1.set_ylabel('Total returns in million U.S. dollars') for ax1 in axes]
+    [ax1.set_ylabel('Total revenue in million U.S. dollars') for ax1 in axes]
     axes[0].set_xlabel('Classification')
     axes[1].set_xlabel('Regression')
     [ax1.set_ylim(0, 2) for ax1 in axes]
@@ -218,8 +218,8 @@ if __name__ == '__main__':
         'time', 1).drop_duplicates()
 
     plot_by_model(results)
-    # df = get_trends_df(results)
-    # plot_historicals(df)
+    df = get_trends_df(results)
+    plot_historicals(df)
     # plot_by_dataset(results)
     # plot_by_frequency(results)
     # plot_by_training(results)

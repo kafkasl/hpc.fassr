@@ -118,7 +118,7 @@ class Position(object):
 
     @staticmethod
     def get_num_shares(price, money):
-        """ Returns how many shares can be bought with money at given price and
+        """ Revenues how many shares can be bought with money at given price and
         the extra money resulting of buying the shares AND paying the fees."""
 
         def buy(num_shares_, price_, money_):
@@ -163,7 +163,7 @@ class Position(object):
                         current_price=price), extra
 
     def sell(self, current_price):
-        """ Returns the total money (initial investment + benefits) of selling
+        """ Revenues the total money (initial investment + benefits) of selling
         the position at current_price having applied the fees. """
 
         fees = self.get_fees(self.shares, current_price)

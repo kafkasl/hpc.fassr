@@ -37,7 +37,7 @@ def plot_by_model(results):
                    'AdaBoost']
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns per model')
+    fig.canvas.set_window_title('Revenues per model')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5, meanline=False)
@@ -55,9 +55,9 @@ def plot_by_model(results):
     #     # matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of total returns for different models')
+    ax1.set_title('Comparison of total revenues for different models')
     ax1.set_xlabel('Models')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
 
     ax1.axhline(y=276480 / 1000000.0, color='red', linestyle='--', alpha=0.4)
     
@@ -142,7 +142,7 @@ def plot_by_dataset(results):
             dataset in datasets]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns per dataset')
+    fig.canvas.set_window_title('Revenues per scaling')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5)
@@ -158,9 +158,9 @@ def plot_by_dataset(results):
 
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of total returns for different datasets')
-    ax1.set_xlabel('Dataset')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_title('Comparison of total revenues for different scaling methods')
+    # ax1.set_xlabel('')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
     ax1.axhline(y=276480 / 1e6, color='red', linestyle='--', alpha=0.4)
     # ax1.get_yaxis().set_major_formatter(
         # matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -231,7 +231,7 @@ def plot_by_frequency(results):
             freq in freqs]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns per frequency')
+    fig.canvas.set_window_title('Revenues per frequency')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5)
@@ -248,9 +248,9 @@ def plot_by_frequency(results):
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
     ax1.set_title(
-        'Comparison of total returns for different trade frequencies')
+        'Comparison of total revenues for different trade frequencies')
     ax1.set_xlabel('Trade frequency (weeks)')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
     ax1.axhline(y=276480 / 1e6, color='red', linestyle='--', alpha=0.4)
     # ax1.get_yaxis().set_major_formatter(
         # matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -320,7 +320,7 @@ def plot_by_training(results):
             mn in freqs]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns per training size')
+    fig.canvas.set_window_title('Revenues per training size')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5)
@@ -337,9 +337,9 @@ def plot_by_training(results):
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
     ax1.set_title(
-        'Comparison of total returns for different training data periods')
+        'Comparison of total revenues for different training data periods')
     ax1.set_xlabel('Length of data used for training')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
     ax1.axhline(y=276480 / 1e6, color='red', linestyle='--', alpha=0.4)
     # ax1.get_yaxis().set_major_formatter(
         # matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -415,7 +415,7 @@ def plot_by_threshold(results):
             b, t in thresholds_list]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns per threshold')
+    fig.canvas.set_window_title('Revenues per threshold')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5)
@@ -431,9 +431,9 @@ def plot_by_threshold(results):
 
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of total returns for thresholds')
+    ax1.set_title('Comparison of total revenues for thresholds')
     ax1.set_xlabel('Top threshold')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
     ax1.axhline(y=276480 / 1e6, color='red', linestyle='--', alpha=0.4)
     # ax1.get_yaxis().set_major_formatter(
         # matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -504,7 +504,7 @@ def plot_by_mode(results):
     data = [results[results['mode'] == m]['last'].values /1e6 for m in modes]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Returns for different trading strategies')
+    fig.canvas.set_window_title('Revenues for different trading strategies')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5)
@@ -520,9 +520,9 @@ def plot_by_mode(results):
 
     # Hide these grid behind plot objects
     ax1.set_axisbelow(True)
-    ax1.set_title('Comparison of total returns for different strategies')
+    ax1.set_title('Comparison of total revenues for different strategies')
     ax1.set_xlabel('Strategy')
-    ax1.set_ylabel('Total returns in million U.S. dollars')
+    ax1.set_ylabel('Total revenue in million U.S. dollars')
     ax1.axhline(y=276480 / 1e6, color='red', linestyle='--', alpha=0.4)
     # ax1.get_yaxis().set_major_formatter(
         # matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -585,6 +585,7 @@ def plot_by_mode(results):
         plt.show()
 
 
+
 if __name__ == '__main__':
     print("Loading ../../results/res1.csv" )
 
@@ -602,3 +603,4 @@ if __name__ == '__main__':
     plot_by_training(results)
     plot_by_threshold(results)
     plot_by_mode(results)
+    plot_by_trade(results)
