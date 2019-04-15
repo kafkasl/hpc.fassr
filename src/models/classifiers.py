@@ -42,15 +42,14 @@ debug_classifiers = {**baseline_classifiers, **{'SVC': (SVC, [{}])}}
 all_classifiers = {**reg_classifiers, **cat_classifiers,
                    **baseline_classifiers}
 
-# C = [{'C': 2 ** i} for i in range(-5, 15, 2)]
-C = [{'C': 2 ** i} for i in [-5, 7, 9, 11, ]]
+C = [{'C': 2 ** i} for i in range(-5, 15, 2)]
 
-gamma = [{'gamma': 2 ** i} for i in range(-7, -1, 2)]
+gamma = [{'gamma': 2 ** i} for i in range(-7, 3, 2)]
 gamma.extend([{'gamma': 'auto'}])
 svc_params = [{**d1, **d2} for d1, d2 in product(C, gamma)]
 
 n_h = [{'hidden_layer_sizes': [n]} for n in
-       [15, 50, 100]]
+       [15, 50, 100, 500, 1000]]
 # discarded a lot of intermediate (100 is not the best, but just in case to keep
 # one a bit 'large'
 m_solver = [{'solver': s} for s in ['lbfgs', 'adam']]
@@ -61,14 +60,15 @@ m_activations = [{'activation': s} for s in ['tanh', 'relu']]
 mlp_params = [{**d1, **d2, **d3} for d1, d2, d3 in
               product(n_h, m_solver, m_activations)]
 
-raf_params = [{'n_estimators': i, 'n_jobs': 24} for i in [50, 250]]
-# raf_params = [{'n_estimators': i, 'n_jobs': 48} for i in [50, 100, 250, 500]]
-ada_params = [{'n_estimators': i} for i in [50]]
-gbc_params = [{'n_estimators': i} for i in [50, 100]]
+raf_params = [{'n_estimators': i, 'n_jobs': 12} for i in [50, 100, 250, 500]]
+ada_params = [{'n_estimators': i} for i in [50, 100, 250, 500]]
 
-# debug_1_classifiers = {'random': (LinearRegression, [{}]),
-debug_1_classifiers = {'graham': (LinearRegression, [{}])}
-                       # 'MLPR': (MLPRegressor, [{}]), 'SVR': (SVR, [{}])}
+
+debug_1_classifiers = {'RFR': (RandomForestRegressor, [{'n_jobs': 2}]),
+                       'graham': (LinearRegression, [{}]),
+                       'MLPR': (MLPRegressor, [{}, {}]),
+                       'MLPC': (MLPClassifier, [{}, {}]),
+                       }
 
 exp_1_classifiers = {**graham,
                      **{'SVC': (SVC, svc_params),
@@ -89,8 +89,7 @@ exp_2_classifiers = OrderedDict({'RFC': (
     'SVC': (SVC, svc_params),
     'SVR': (SVR, svc_params)})
 
-exp_3_classifiers = OrderedDict({'random': (LinearRegression, [{}]),
-                                 'RFR': (RandomForestRegressor, raf_params),
+exp_3_classifiers = OrderedDict({'RFR': (RandomForestRegressor, raf_params),
                                  'AdaBR': (AdaBoostRegressor, ada_params),
                                  'MLPR': (MLPRegressor, mlp_params),
                                  'LR': (LinearRegression, [{}]),
