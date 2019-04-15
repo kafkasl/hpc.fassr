@@ -231,6 +231,7 @@ def get_trends_df(results):
     w_found = []
     b_trends = []
     w_trends = []
+    import ipdb
     for file in glob('./*/clean_results_*'):
         print("Processing: %s" % file)
         result = load_obj(file[:-4])
@@ -240,7 +241,8 @@ def get_trends_df(results):
             trend = [r for r in result if
                      '%.1f' % r[1][-1].total_money == str(price)]
             if len(trend) > 0 and clf not in b_found:
-                print('found!')
+                ipdb.set_trace()
+                print('found! %s' % list(trend[0]))
                 b_found.append(clf)
                 b_trends.append(to_df_col(trend[0][1], clf))
         for i, (clf, price) in enumerate(worst.itertuples()):
@@ -248,7 +250,8 @@ def get_trends_df(results):
             trend = [r for r in result if
                      '%.1f' % r[1][-1].total_money == str(price)]
             if len(trend) > 0 and clf not in w_found:
-                print('found!')
+                ipdb.set_trace()
+                print('found! %s' % list(trend[0]))
                 w_found.append(clf)
                 w_trends.append(to_df_col(trend[0][1], clf))
 
@@ -300,10 +303,11 @@ if __name__ == '__main__':
     # results = r[(r.trade_frequency == 52) | (r.trade_frequency == 26)]
 
     plot_by_model(results)
-    #
-    # best_df, worst_df = get_trends_df(results)
-    # plot_historicals(best_df, worst_df)
+
     plot_by_k(results)
+
+    best_df, worst_df = get_trends_df(results)
+    plot_historicals(best_df, worst_df)
     # plot_by_frequency(results)
     # plot_by_training(results)
     # plot_by_threshold(results)

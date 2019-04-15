@@ -12,26 +12,19 @@ cols = ["dataset", "period", "clf", "magic", "model_params", "k", "bot_thresh",
         "top_thresh", "mode", "trade_frequency", "start_trade", "final_trade",
         "time", "min", "max", "mean", "last"]
 
-exp = int(sys.argv[1])
+exp = sys.argv[1]
 
-rf = pd.read_csv('rf_%s.csv' % exp).sort_values('last').drop('time', 1).drop_duplicates()
-svm = pd.read_csv('svm_%s.csv' % exp).sort_values('last').drop('time', 1).drop_duplicates()
-mlp = pd.read_csv('mlp_%s.csv' % exp).sort_values('last').drop('time', 1).drop_duplicates()
-ada = pd.read_csv('ada_%s.csv' % exp).sort_values('last').drop('time', 1).drop_duplicates()
+rf = pd.read_csv('rf_%s.csv' % exp).sort_values('time')
+svm = pd.read_csv('svm_%s.csv' % exp).sort_values('time')
+mlp = pd.read_csv('mlp_%s.csv' % exp).sort_values('time')
+ada = pd.read_csv('ada_%s.csv' % exp).sort_values('time')
 
-
-# plt.plot(rf['estimators'], rf['last'])
+res = pd.concat([rf, svm, mlp, ada], axis=0)
 
 
 def add_legend(fig):
 
     # Finally, add a basic legend
-    fig.text(0.8005, 0.115, '-', color='red', backgroundcolor='silver',
-             weight='roman', size='medium')
-    fig.text(0.817, 0.115, ' S&P 500 Index returns', color='black',
-             weight='roman',
-             size='x-small')
-
     fig.text(0.8005, 0.165, '*', color='white', backgroundcolor='silver',
              weight='roman', size='medium')
     fig.text(0.815, 0.165, ' Average Value', color='black', weight='roman',
@@ -40,10 +33,10 @@ def add_legend(fig):
 def plot_by_estimators(results, x_lab, param, fname, title):
     # plot by model
     estimators = sorted(set(results[param]))
-    data = [results[results[param]==e]['last'].values / 1000000.0 for e in estimators]
+    data = [results[results[param]==e]['time'].values for e in estimators]
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    fig.canvas.set_window_title('Revenues per model')
+    fig.canvas.set_window_title('Execution times')
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     bp = ax1.boxplot(data, notch=0, sym='+', vert=1, whis=1.5, meanline=False)
@@ -62,9 +55,8 @@ def plot_by_estimators(results, x_lab, param, fname, title):
     ax1.set_axisbelow(True)
     ax1.set_title(title)
     ax1.set_xlabel(x_lab)
-    ax1.set_ylabel('Gross returns in million U.S. dollars')
+    ax1.set_ylabel('Execution time (s)')
 
-    ax1.axhline(y=276480 / 1000000.0, color='red', linestyle='--', alpha=0.4)
 
     # Now fill the boxes with desired colors
     boxColors = ['royalblue', 'royalblue']
@@ -140,16 +132,15 @@ def plot_by_estimators(results, x_lab, param, fname, title):
     if show_plot:
         plt.show()
 
-
 # RF
-plot_by_estimators(rf, 'Number of trees', 'estimators', 'rf_estimators_%s' % exp, 'Total revenues for different numbers of trees in random forests')
+plot_by_estimators(rf, 'Number of trees', 'estimators', 'rf_estimators_%s' % exp, 'Execution times for different numbers of trees in random forests')
 # Ada
-plot_by_estimators(ada, 'Number of estimators', 'estimators', 'ada_estimators_%s' % exp, 'Total revenues for different number of estimators in AdaBoost')
+plot_by_estimators(ada, 'Number of estimators', 'estimators', 'ada_estimators_%s' % exp, 'Execution times for different number of estimators in AdaBoost')
 # Neural nets
-plot_by_estimators(mlp, 'Number of neurons', 'size', 'mlp_size_%s' % exp, 'Total revenues for different sizes of the hidden layer in neural networks')
-plot_by_estimators(mlp, 'Solver', 'solver', 'mlp_solver_%s' % exp, 'Total revenues for different solvers of the neural network')
-plot_by_estimators(mlp, 'Activation function', 'activation', 'mlp_activation_%s' % exp, 'Total revenues for different activation functions for the neural network')
+plot_by_estimators(mlp, 'Number of neurons', 'size', 'mlp_size_%s' % exp, 'Execution times for different sizes of the hidden layer in neural networks')
+plot_by_estimators(mlp, 'Solver', 'solver', 'mlp_solver_%s' % exp, 'Execution times for different solvers of the neural network')
+plot_by_estimators(mlp, 'Activation function', 'activation', 'mlp_activation_%s' % exp, 'Execution times for different activation functions for the neural network')
 # SVM
 # TOO FEW VALUES:
-plot_by_estimators(svm, 'C', 'C', 'svc_c_%s' % exp, 'Total revenues for differnt values of C for the SVMs')
-plot_by_estimators(svm, 'Gamma', 'gamma', 'svc_gamma_%s' % exp, 'Total revenues for different gamma values for the SVMs')
+plot_by_estimators(svm, 'C', 'C', 'svc_c_%s' % exp, 'Execution times for differnt values of C for the SVMs')
+plot_by_estimators(svm, 'Gamma', 'gamma', 'svc_gamma_%s' % exp, 'Execution times for different gamma values for the SVMs')
