@@ -1,0 +1,53 @@
+\chapter{Introduction} 
+\label{chap:introduction}  
+
+%----------------------------------------------------------------------------------------
+
+% Define some commands to keep the formatting separated from the content 
+\newcommand{\keyword}[1]{\textbf{#1}}
+\newcommand{\tabhead}[1]{\textbf{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{\bfseries#1}}
+\newcommand{\option}[1]{\texttt{\itshape#1}}
+
+%----------------------------------------------------------------------------------------
+
+\section{Motivation}
+
+Machine learning has seen a steady increase in industrial application in recent  years. The amount of useful information in many knowledge work disciplines is too large to be analyzed without ML models or similar techniques. However, currently used ML techniques are part of the so-called weak artificial intelligence (weak AI) or narrow AI. Weak AI techniques are focused on solving a very narrow task, so they do not generalize well. This kind of AI models need to be specially tailored to the specific task they try to solve. Stock price prediction is no exception. The  financial gains promised by improving existing methods have led to a high number of scientific papers applying ML techniques to stock market forecasting and automating financial decision making in general~\cite{fischer2018deep}~\cite{krauss2017deep}~\cite{ballings2015evaluating}. However, each paper proposes a different set of features, targets, and evaluation methods, so its difficult to compare their results.
+
+Explanatory variables for financial prediction are often drawn from technical and fundamental analysis, two disciplines of quantitative analysis which require a solid base knowledge and significant experience in order to draw accurate conclusions. On these types of information, rely most criteria of expert traders. In this project, we offer a comparison between the criteria of the great Benjamin Graham, the father of fundamental analysis investment methodology,  and the most common ML models. In order to address the issue of finding the best configuration for the model, we need a system capable of evaluating a massive number of models and be extensible enough to try different techniques and approaches. 
+
+
+We propose \HPCsys, a High-Performance Computing Fundamental Analysis Stock Screening and Ranking system, powered by PyCOMPSs, to compare the performance
+of various supervised learning algorithms like neural networks, random forests, support vectors machines, or AdaBoost, 
+and well-known human expert trader's criteria %%(B. Graham)
+for selecting stocks based on fundamental factors. 
+The parallelization of \HPCsys with PyCOMPSs allows us to explore a vast number of configurations in a short time.
+
+The project objectives are:
+
+\begin{enumerate}
+\item Compare stock screening results using human expert's rules against machine learning models. %% without shorting
+\item Compare the performance, in terms of revenue, when considering the task of stock screening either as a regression or classification problem. %% shorting also
+\item Determine if using regression information to do stock ranking yields better revenues  results than stock screening for trading.
+
+%\item Determine if adding market information to the indicators through z-scores improves the performance of ML models.
+
+\item Develop a High-Performance Computing system able to explore a significant number of models and datasets.
+
+\item Use the HPC system to test the contribution to performance (in results and computational resources) of different
+configurations for the models, data sets and trading.
+
+\end{enumerate}
+
+
+
+\section{Document Structure}
+
+The rest of the thesis is structured as follows. Chapter \ref{chap:related} discusses some related work. Chapter~\ref{chap:methodology} describes the data sources and preprocessing, the models explored, and the experimental setup and evaluation. Chapter~\ref{chap:parallelization} contains a short overview of PyCOMPSs parallelization framework, how it has been used to distribute the execution of \HPCsys, and which performance tests have been executed to evaluate it. Chapter~\ref{chap:results} presents and discusses the results of the performance and trading experiments. Chapter~\ref{chap:conclusions} contains the conclusions and, in Chapter~\ref{chap:further}, we point out some research lines and possible features for further work on \HPCsys.
+
+\section{Contributions}
+Part of the work in this thesis has been accepted for presentation at the International Conference on Computational Finance (ICCF 2019)
+A Coru\~na (Spain), July, 8-12th, 2019. 
+\url{http://iccf2019.udc.es}

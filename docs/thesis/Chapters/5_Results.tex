@@ -1,0 +1,407 @@
+\chapter{Results and Discussion}
+\label{chap:results} 
+
+This section presents the results of evaluating \HPCsys. The first section exposes the execution performance through weak and strong scaling tests, and models' execution time. The second section is composed of three experiments, each with a different trading scenario, and presents the economic performance of each configuration.
+
+\section{Execution performance}
+
+We evaluate the parallelization performance in both weak and strong scaling scenarios and the executions time and size of the different models.
+
+\subsection{Strong scaling}
+
+Figure~\ref{fig:strong} shows the execution time and speedup of the strong scaling experiments. The speedup is linear for all the experiments. The superlinear speedup observed between 2 and 32 nodes stems from the fact that, when using a single node, the worker has 24 CPUs, when adding a second node, the full node is used (48 CPUs) so, when scaling from one node to two, you have three times more CPUs despite only having twice the amount of nodes. 
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/performance/strong_times.png}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/performance/strong_speedup.png}
+\end{subfigure}
+\caption{Execution times (left) and speedup (right) of the strong scaling experiments evaluating 2000 configurations trading yearly from 2009 to 2018.}
+\label{fig:strong}
+\end{figure}
+
+Figure~\ref{fig:traces_strong} shows the tracefiles of the strong scaling experiments. The initial red tasks are responsible for training the parallel models with 12 CPUs so only four of them can be run at the same time in a given node, but they use the whole node. Note that each tracefile has a different time scale, roughly half the time when doubling the resources. In the first tracefile, each thread evaluates around 33 classification and regression models. In the last one, each thread evaluates either 1 or 2 of each model type.
+\HPCsys's performance depends on the number of configurations to test and there two situations when increasing the number of resources does not improve the performance. First, when there are not enough classification and regression tasks for each thread, because their different times leave some CPUs idle while longer tasks finish. The second cause happens when the number of classification tasks (which last twice as much as the regression ones) is slightly higher than the number of available threads. If there are $c$ classification tasks, $n$ available threads, and $2 > c > n$, then there are going to be $2*n - c$ idle threads at the end of the execution. As the number of resources increases (and total time decreases), the fraction of the total time that a single evaluation task represents also increases extending the time wasted by idle threads. Whenever the number of configurations' number is large enough, 
+\HPCsys should scale almost linearly. The weak scaling tests objective is to validate this thesis.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.9\textwidth]{images/performance/comparison_trace_strong.png}
+    \caption{\small Tracefiles of the strong scalability tests reported in Figure~\ref{fig:strong}  from 1 node (top) to 32 nodes (bottom). Please note that each tracefile has a different time axis (roughly halving for each execution from top to bottom). Red tasks evaluate parallel models with 12 CPUs, green and yellow tasks evaluate the regression and classification models, with a single CPU, respectively.}
+    \label{fig:traces_strong}
+\end{figure}
+
+\subsection{Weak scaling}
+
+Figure~\ref{fig:weak} shows the execution time and speedup of the weak scaling experiments. The weak scaling speedup is very close to the ideal for all sizes so \HPCsys scales almost linearly when the number of configurations is large enough. The first steeper increase of the execution time is caused by going from 1 node, where there are no network communications, to 2 nodes, which have network transmissions that add overhead. From 2 nodes onwards, the cost of communication between two or more nodes is very similar so the overhead increases much more slowly. Figure~\ref{fig:traces_weak} shows tracefiles of of the weak scaling executions. In this situation, we increase the problem size and the computing power at the same rate. The tracefiles are in the same time scale. The time until the first task (blue) starts increases slightly with more nodes due to the overhead of initializing a more significant number of workers. Despite that, the overhead of doubling the resources between tests is almost negligible. The ratio of tasks to train per thread is constant so, despite all executions being slightly unbalanced towards the end, this does not cause any significant performance loss.
+
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/performance/weak_times.png}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/performance/weak_speedup.png}
+\end{subfigure}
+\caption{Execution times (left) and speedup (right) of the weak scaling experiments evaluating 50, 150, 350, 750, 1550, and 3150 configurations with 1, 2, 4, 8, 16, and 32 nodes respectively trading yearly from 2009 to 2018.}
+\label{fig:weak}
+\end{figure}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.9\textwidth]{images/performance/comparison_trace_weak.png}
+    \caption{\small Tracefiles of the weak scalability tests reported in Figure~\ref{fig:weak} from 1 node (top) to 32 nodes (bottom). Please note that all tracefiles have the same time axis. Red tasks evaluate parallel models with 24 CPUs, green and yellow tasks evaluate the regression and classification models, with a single CPU, respectively.}
+    \label{fig:traces_weak}
+\end{figure}
+
+\subsection{Models}
+
+Table~\ref{tab:times_model} shows the average and the standard deviation of the execution time required to evaluate each model. The random forests would be the worst models if they were not trained using 12 CPUs because they would be around $x12$ slower; we also tried also using 24 (half node), and 48 CPUs (full node) but empirically 12 CPUs yielded faster \textit{total} execution times. It is worth noting that we are able to thanks to HPC capabilities of MareNostrum which has 48 CPUs per node and 96 GB of RAM, allowing all tasks to load the training data into memory at the same time and interleave the executions of models with 1 and 24 CPUs.
+Next, the neural networks are the slowest on average, but they also have the highest variance (probably because their parameter, \textit{hidden layer size}, directly affects the training time). SVMs take on average similar times to the neural networks but their variance much lower. Finally, AdaBoost is the fastest method.
+
+The execution times between models vary a lot and these times can be further increased for larger datasets. Having very slow and fast methods coexisting causes work unbalance. In our experiments, the unbalance overhead was never too critical. However, for larger datasets this might become a bottleneck and degrade the scalability. We leave as future work trying a finer task granularity where each training step is done in different tasks not together in a single one.
+
+\begin{table}
+\centering
+    \begin{tabular}{|c|c|}
+    \hline
+    Model                        & Execution time (s)                       \\ \hline
+    Linear Regression            & $0.93 \pm 0.12$     \\
+    Random Forest Classification & $17.06 \pm 9.51$     \\
+    Random Forest Regression     & $58.12 \pm 44.02$   \\
+    Graham's Criteria            & $37.13 \pm 3.35$    \\
+    AdaBoost Regression          & $39.87 \pm 16.49$   \\
+    AdaBoost Classification      & $45.43 \pm 30.13$   \\
+    SVM Classification           & $89.80 \pm 30.50$   \\
+    NN Regression                & $91.59  \pm 90.29$  \\
+    SVM Regression               & $99.25  \pm 11.81$  \\
+    NN Classification            & $150.01 \pm 115.72$ \\ \hline
+    \end{tabular}
+    \caption{Mean and standard deviation of the time required to evaluate each model throughout all three trading performance experiments~\ref{sec:trading_performance} ordered from fastest to slowest. Random forests training is multithreaded (\textit{n\_jobs} $=12$ CPUs) while all others models use a single CPU.}
+    \label{tab:times_model}
+\end{table}
+
+Figures~\ref{fig:nn_neurons_times},~\ref{fig:nn_activation_times},~\ref{fig:nn_solver_times},~\ref{fig:rf_times},~\ref{fig:ada_times},~\ref{fig:svc_c_times}, and~\ref{fig:svc_gamma_times} show how the execution time varies with different values of the model's parameters. The results reported are from the three trading experiments from section~\ref{sec:trading_performance}. For the AdaBoost, random forests, and neural networks, the number of estimators, trees, and neurons is directly proportional to the model's execution time. With respect to the solvers, both have similar average; LBFGS has a lower median but Adam has a smaller IQR. For the network's activation function, ReLU function is much faster than \textit{hyperbolic tangent} and has less variance. The ReLU is, as of 2017, the most used activation function thanks to learning much faster in deep networks~\cite{deeplearning}.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/mlp_size_p.png}
+    \caption{\small Boxplot of the execution time of neural networks for different sizes of the hidden layer.}
+    \label{fig:nn_neurons_times}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/mlp_activation_p.png}
+    \caption{\small Boxplot of the execution time of neural networks for different activation functions.}
+    \label{fig:nn_activation_times}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/mlp_solver_p.png}
+    \caption{\small Boxplot of the execution time of neural networks for different solvers.}
+    \label{fig:nn_solver_times}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/rf_estimators_p.png}
+    \caption{\small Boxplot of the execution time of random forests for different number of trees.}
+    \label{fig:rf_times}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/ada_estimators_p.png}
+    \caption{\small Boxplot of the execution time of AdaBoost for different number of estimators.}
+    \label{fig:ada_times}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/svc_gamma_p.png}
+    \caption{\small Boxplot of the execution time of SVMs for different values of $\gamma$.}
+    \label{fig:svc_c_times}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/performance/svc_c_p.png}
+    \caption{\small Boxplot of the execution time of SVMs for different values of $C$.}
+    \label{fig:svc_gamma_times}
+\end{figure}
+
+For the checkpointing feature, Table~\ref{tab:sizes} shows the sizes of each model after being serialized and compressed. The size of linear regression is the smallest and it is constant as it only needs to save a small constant number of coefficients and the intercept. The random forests are the heaviest models, with an average of 48MB per model, and vary a lot as the number of parameters to save grows linearly with the number of trees. The next heaviest model is the SVM which has to save all support vectors that define a model. The neural networks and AdaBoost are much lighter and have similar averages. They also present significant deviations attributed to the changes in the number of neurons and estimators. 
+
+The mean size of all models (without taking into account linear regression which is only used for reference), is 12KB. The total number of models saved for each configuration is $m=tf_y * tp$, where $tf_y$ is the yearly trading frequency (1 if we trade each year), and $tp$ is the trading period length in years. We save a model for each trading session per configuration. For the first and third trading experiments, around 170K models saved, and close to 340K for the second experiment. This means that the average disk space required to cache experiments 1 and 3 is 20.8GB, and around 42GB for the second one. These sizes can greatly increase with higher trading frequencies. The total sizes can be quite large and may this technique may not suitable outside HPC environments with limited amounts of storage. However, in our experiments, sacrificing this amount of disk space was preferable to losing all data if the 10 hours time limit of MareNostrum 4 cancelled a job. Moreover, there are overlapping configurations in the three experiments so the total size is smaller and the overlapping models are only trained only once.
+
+\begin{table}
+\centering
+    \begin{tabular}{|c|c|}
+    \hline
+    Model                        & Size (KB) \\ \hline
+    Linear Regression            & $0.6 \pm 0.0 $     \\
+    Random Forest                & $48,546.1 \pm 72,040.7 $   \\
+    AdaBoost                     & $37.8 \pm 40.0$  \\
+    SVM                          & $355.6 \pm 192.0 $   \\
+    Neural Network               & $39.0 \pm 60.2$ \\ \hline
+    \end{tabular}
+    \caption{Mean and standard deviation of the size of each model after serialization and compression, with pickle and gzip respectively, throughout all the trading performance experiments.}
+    \label{tab:sizes}
+\end{table}
+
+\section{Trading performance}
+\label{sec:trading_performance}
+
+We set up three experiments to evaluate the performance of the different models. The first experiment compares Graham's criteria and classification models in the most restricted scenario out of the three experiments: we only allow long positions because Graham's criteria can only be used for stock screening. In the second experiment, we allow both long and short positions, and we compare classification and regression models. In this experiment, we use the regression models as a stock screening method. In the final experiment, we only evaluate the regression models. In this setting, we use the models' predicted returns to build a stock ranking and pick the best/worst $k$ stocks in each trading session. The classification models and Graham's criteria are excluded from the third experiment because neither can be used to build a ranking.
+
+The threshold value used for long positions ranges from $0 - 0.03$ with increments of $0.005$ (i.e., from returns above 0 to returns above 3\%). We also evaluate both the standard scaling dataset and the one using z-scores. Appendix \ref{app:parametrizations} lists all parametrizations explored for each model. All models start with an initial budget of USD 100K. The plots that contain an S\&P 500 Index revenue marker or threshold refer to the revenue obtained by investing these initial 100K USD in the index. All the experiments are evaluated in the trading period ranging from 2009 to 2018.
+Finally, unless stated otherwise, all the boxplots contain the total revenue of an investment without taking into account the fees of selling the positions. On the other hand, the chronological plots of the revenue, represent the total money available if, at each trading session, we sell all the current positions.
+
+
+\subsection{Experiment 1}
+
+This experiment pitches Graham's stock screening criteria against the ML models in stock screening. In this experiment, only long positions are allowed because Graham criteria cannot be used for shorting.
+
+Figure~\ref{fig:exp1_box_model_returns} reports the total money obtained from selling all positions (including fees) at the end of the trading period.  %%HOW long is trading period?
+We see that random forest (RF) has the best mean and median. We explored a large number of parametrizations for SVMs which is probably the cause of having a more significant deviation (and outliers) w.r.t other models. Correct parametrizations of SVM lead to the best results despite having a similar mean to NN. We believe that exploring more network topologies and parameters, instead of using the basic MLP, could increase the performance. %% TODO comment about Graham
+
+%% Rewrite in light of knowing why they work worse (not stable set of stocks), and that we have explained z-scores in methodology.
+Figure~\ref{fig:exp1_box_dataset_returns} shows the returns when scaling the data with z-scores or normalization. The results are worse when using z-scores. We believe that this is caused because the set of available stocks at each trading session is not constant. The goal of the z-scores is to normalize the data intelligently by grouping them by industries. In this scenario, we use the mean and standard deviation of the group instead of the ones from the whole training dataset as we do in normalization. However, the group means and standard deviations can vary wildly from one trading session to the next one due to the absence or presence of big stocks thus adding noise instead of information when scaling the data.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/models.png}
+    \caption{\small Boxplot  of the first experiment's total revenue for different parametrizations grouped by model.}
+    \label{fig:exp1_box_model_returns}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/datasets.png}
+    \caption{\small Boxplot  of the first experiment's total revenue for normal scaling or z-scores. %% TODO write why (because members pop in and out not giving a practical view of the session)
+    }
+    \label{fig:exp1_box_dataset_returns}
+\end{figure}
+
+
+Figure~\ref{fig:exp1_box_thresh_returns} is the total revenue obtained by different threshold values. If the return of a sample is greater than the threshold it is labeled as a long position and neutral otherwise (no shorting allowed in this experiment). The higher the threshold, the higher the number of outliers (the best results). Despite this increase, the average and median values do not change much.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/thresholds.png}
+    \caption{\small Boxplot of the first experiment's total revenue for different thresholds.}
+    \label{fig:exp1_box_thresh_returns}
+ \end{figure}
+ 
+Figure~\ref{fig:exp1_box_training_returns} shows the revenue when training the models with last year's data or the previous two years. Training with only last year far outperforms using two years. This indicates that underlying data contains concept drift and that data older than a year adds noise and decreases accuracy. Moreover, using two years of data increases notably the training time of the models.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/experiment_1/training.png}
+    \caption{\small Boxplot of the first experiment's total revenue when taking either one or two previous years as training data.}
+    \label{fig:exp1_box_training_returns}
+\end{figure}
+
+Figure~\ref{fig:exp1_box_freq1_returns} shows the returns when trading each semester or each year. Trading each semester obtains almost a 50\% more returns than yearly. Trading each semester incurs into higher fees but predicting the returns of a stock a year ahead is harder than only a semester. Moreover, we have seen that using a single year to train the models is better than two due to concept drift. The same problem applies here.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/frequency.png}
+    \caption{\small Boxplot of the first experiment's total revenue when trading every semester and year. Trading every six months yields far better results than yearly.}
+    \label{fig:exp1_box_freq1_returns}
+ \end{figure}
+ 
+
+Figure~\ref{fig:exp1_box_mode_returns} shows the revenue obtained by each of the two proposed strategies: \textit{sell\_all} and \textit{avoid\_fees}. The strategy of trying to avoid fees by holding onto the stocks already owned whenever they are recommended again seems to work well, getting half million more of average revenue and close to a 60\% more in the best cases.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/experiment_1/modes.png}
+    \caption{\small Boxplot of the first experiment's total revenue for trading strategies: \textit{sell\_all} and \textit{avoid\_fees}. }
+    \label{fig:exp1_box_mode_returns}
+\end{figure}
+
+
+Figure~\ref{fig:exp1_box_ada_estimators} shows that the more estimators used when training the AdaBoost model, the better results it gets. However, as seen in Figure~\ref{fig:ada_times} the execution time increase of AdaBoost increases far faster than the accuracy with respect to the number of estimators. %% revise this sentence once the time results are available.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/experiment_1/ada_estimators_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue for different number of estimators for AdaBoost model.}
+    \label{fig:exp1_box_ada_estimators}
+\end{figure}
+
+Figure~\ref{fig:exp1_box_mlp_solver} shows how the choice of solver affects the total revenue obtained by  neural networks. LBFGS performs better than Adam. Our number of training samples is quite small (around ~10K). In these small scenarios is usual that LBFGS converges faster and performs better.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/experiment_1/mlp_solver_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue when training the neural network with different solvers.}
+    \label{fig:exp1_box_mlp_solver}
+\end{figure}
+
+Figure~\ref{fig:exp1_box_mlp_size} shows how the number of neurons in the hidden layer affects the revenue obtained. The average return increases up to 500 neurons. For 1000 neurons, the mean revenue starts to decrease hinting that the optimal number of neurons must be in $[500, 1000)$. It is worth noting that the higher the number of neurons, the longer it takes to train the models. However, as we see here, it is worth spending more computing power examining large sizes because they can indeed improve the performance.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12cm]{images/experiment_1/mlp_size_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue for different hidden layer sizes of the neural network.}
+    \label{fig:exp1_box_mlp_size}
+\end{figure}
+
+
+Figure~\ref{fig:exp1_box_mlp_activation} shows the results of using two different activation functions for the neural network. The ReLU activation has a slightly better mean than the hyperbolic tangent function but also more variance.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/mlp_activation_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue for different activation functions of the neural network.}
+    \label{fig:exp1_box_mlp_activation}
+\end{figure}
+
+Figure~\ref{fig:exp1_box_rf_estimators} shows how the number of trees in the random forest affects the total revenue obtained. The average revenue slightly decreases with the number of trees. On the other hand, the lowest variance is obtained with 250 trees, more or less than that, the variance increases. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/rf_estimators_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue for different numbers of trees in each random forest.}
+    \label{fig:exp1_box_rf_estimators}
+\end{figure}
+
+Figure~\ref{fig:exp1_box_svc_gamma} and ~\ref{fig:exp1_box_svc_c} show how the $\gamma$ kernel coefficient and the $C$ penalty term of the SVMs affect the performance. For $\gamma$, we see that neither the average revenues nor the variances change much  for most models, using the auto value ($\frac{1}{\text{n\_features}}$) is good enough. Concerning $C$, the optimal value appears to be around 2048.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/svc_gamma_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue for different kernel coefficients gamma when using SVMs with RBF kernel. \textit{Auto} gamma value defaults to $1/n_{features}$, in our example $1/20=0.5$. }
+    \label{fig:exp1_box_svc_gamma}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_1/svc_c_1.png}
+    \caption{\small Boxplot of the first experiment's total revenue for penalty values C for the SVM model.}
+    \label{fig:exp1_box_svc_c}
+\end{figure}
+
+
+\subsection{Experiment 2}
+
+This experiment compares regression and classification models in stock screening. Both types of models use the same threshold values used to label the target in classification and to label the prediction in regression (see Figure~\ref{fig:regcla}). The extra information of the regressors (predictions can be ordered) is ignored to make the comparison fair. 
+
+Figure~\ref{fig:exp2_box_model_returns} shows the distribution of the net returns for each model and task type.  Classification models obtain slightly higher best results but with higher variance. The introduction of short positions allows the worse parametrizations to lose money at a higher rate than with long positions, even finishing with debts (the model can not buy the already opened short positions). Finally, all the models' mean returns outperform the index and all IQRs, except the SVM regressor's, are above the index's returns.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=12.5cm]{images/experiment_2/models.png}
+    \caption{\small Boxplot of the second experiment with the total revenue of different parametrizations grouped by model.}
+    \label{fig:exp2_box_model_returns}
+\end{figure}
+
+Figure~\ref{fig:exp2_hist_model_returns} shows the revenue at each session for the best models if all open positions are sold. The SVMs and random forests obtain the best results in both categories yielding around USD 1.75 million,
+    outperforming the S\&P 500 Index by a vast margin.
+The MLP neural network comes close in third place with a total revenue of around 1.3 million. AdaBoost is the last but still manages to get almost three times more revenue than investing on the index.
+
+    
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{images/experiment_2/historicals.png}
+    \caption{\small Evolution of the net revenue (after selling positions) for the second experiment by the best regressors and classifiers.}
+    \label{fig:exp2_hist_model_returns}
+\end{figure}
+
+
+
+\subsection{Experiment 3}
+
+This experiment evaluates the performance of regression models for stock ranking. We use the predicted return of the models to rank the stock in each session. When selecting the stocks, only the best/worst $k$ stocks in the ranking are picked. Once selected, they are traded following one of the two strategies~\ref{subsec:strategies}.
+
+Again all models start with 100k. The thresholds used for trading are range from $0 - 0.03$ with increments of $0.01$. The values tested for $k$ are 10, 25, and 50 to build portfolios of size 20, 50, and 100 respectively.
+
+Figure~\ref{fig:exp3_box_model_returns} shows the total money achieved by each model at the end of the trading sessions. Using the regressors for ranking improves the performance of the models dramatically. Almost all models outperform the index except some that lose money or get into debt. The best models are far above the average underlining how important it is to explore a large number of parametrizations to find the best ones. 
+
+The bests models are random forests, which can turn the initial 100K into around USD 17.5 million. It is important to note that medians and averages are quite similar to those in Figure~\ref{fig:exp1_box_model_returns} and Figure~\ref{fig:exp2_box_model_returns} from previous experiments, but the best models outperform these averages by order of magnitude. The best models are consistently reported by the random forests models. The best result is 17.6 USD millions from the initial 100K underlining how important it is to be able to explore as many configurations as possible to choose the best one. 
+
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=9cm]{images/experiment_3/models.png}
+    \caption{\small Boxplot of the third experiment with the total revenue obtained by each model. }
+    \label{fig:exp3_box_model_returns}
+\end{figure}
+
+
+Figure~\ref{fig:exp3_box_ks_returns} adds to the  economic theory on the goodness of diversification that the ampler the portfolio, the more consistent the revenue growth and  the less relevant the sophistication of  the model: there is no need to tune parameters to the best possible for the results are in line with the average model. %% Explain something along the lines: the best models (RF) are run in parallel 24 which would be too expensive for local machines.
+For the values $[10, 25, 50]$ of the parameter $k$, we select that number of best and worst stocks building a portfolio of 20, 50, and 100 stocks respectively. However, if there are not enough predictions above the thresholds the portfolio size might be smaller. For the cases where either short or long positions are deactivated the portfolio's maximum size is $k$.
+
+%  Building a portfolio of size 20 reports the highest returns for the best configurations. However, both larger portfolios of 50 and 500 have an higher average return because they are more diversified minimizing the risk. In other words, the larger the portfolio size the less relevant the quality of the model becomes. If we intend to build portfolios of 100 or more elements, choosing accurately in which stocks to invest is not as important as in smaller sizes.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=9cm]{images/experiment_3/ks.png}
+    \caption{\small Boxplot of the third experiment total revenues grouped by different portfolio sizes.}
+    \label{fig:exp3_box_ks_returns}
+\end{figure}
+
+
+% {\bf [Los outliers corresponden a que modelos y que parametrizaciones? se espera que sean modelos que requieren mucho tiempo de training, ajustar parametros, largas capas o numero de arboles... se observa que los que dan mayores ganancias requieren njobs= 12, RandomForest tarda 8 segs, un procesador de la leche que no lo puede comprar cualquiera]}
+% %%En linea con la teoria de noisy rational expectations of Grossman y Stiglitz: quien pague por la informacion recibe lo suyo
+
+% %% also explain that the ensemble methods are the most stable, and SVM and NN are the best, but without tuning they are the worst
+
+Figure~\ref{fig:exp3_historicals} shows the evolution of the best and worst models of this experiment. The random forest's worst execution is the only model that does not lose money. Without careful tuning of their parameters, all the other models lose money or go into debt like SVMs.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{images/experiment_3/historicals.png}
+    \caption{\small Net revenues of the third experiment's best and worst models.}
+    \label{fig:exp3_historicals}
+\end{figure}
+
+Table~\ref{tab:best_worst_models_3} shows the parameters of the trend lines from Figure~\ref{fig:exp3_historicals}. The best results for all models are obtained trading every semester and without shorting while the worst results are obtained trading each year only short positions. Concerning the scaling method, its effect is not as clear and appears to depend on the model used. The best portfolio size is 20 ($k=10$) for all models while worst results use $k=[50, 100]$, except the neural networks whose worst result is also with $k=10$. For the trading strategy, even though \textit{avoid\_fees} has a better average return than \textit{sell\_all} in Experiment 1, here \textit{avoid\_fees} is not used by any of the best models.
+For both the random forest and AdaBoost models, the best and worst model use 50 trees/estimators so the model's size is not as relevant as the other parameters. Moreover, the execution time of the random forest grows linearly with the number of trees, making it very slow without using HPC-grade computing nodes that allow parallel training.
+For the neural networks, the best activation and size are \textit{ReLU} and $500$ neurons; the worst, \textit{tanh} and $15$ neurons. This means that increasing the number of neurons is worth it. However, the time required to train larger networks increases from  around 30 seconds with 15 neurons to an average of 20 minutes for 1000 neurons (see Figure~\ref{fig:nn_neurons_times}). Fortunately, \textit{ReLU} activation, which is the fastest activation function, also gets the best results so it can ease a bit the computational burden.
+For SVM, larger penalty parameters $C$ produce worse results, probably because it causes the model to overfit. For the $\gamma$ parameter of the RBF kernel, smaller values are better also.
+Finally, for the reference linear regression, the results follow the general trend: best, trading each semester long positions; worst, trading each year only short positions.
+The fact that the best models only trade long positions, and the worst only short positions, is caused by the fact that the S\&P 500 index has a growing trend throughout all our trading period. In this situation the expected average return of long positions is positive, and the one from short positions is negative so, going long yields higher returns.
+% by the survivorship bias. Stocks that lose market capitalization are kicked out of the index, and the economy has been growing so that causes the index to have a positive trend always. Shorting benefits from investing in companies with a downtrend, but this companies tend to be kicked out of the index.
+\begin{landscape}
+
+
+\begin{table}
+\caption{Best and worst configurations of each model for experiment 3 using one year of training data. An infinity value as top/bottom threshold means that long/short positions are deactivated respectively. The revenue is in USD.}
+\centering
+    \begin{tabular}{|c|c|c|c|c|c|c|c|c|c|}
+    \hline 
+    Mode              & Scaling & Bot & Top & Trade freq. & Strategy & Model parameters                                                                                       & K & CPUs  & Revenue    \\ \hline
+    Random Forest     & z-score & $-\infty$         & 0.01          & 6 m              & sell\_all      & Trees: 50                                                                                          & 10 & 12  & 17.759.224,80 \\
+    Neural Network    & z-score & $-\infty$          & 0             & 6 m              & sell\_all      & \begin{tabular}[c]{@{}c@{}}Hidden Layer Sizes: 500\\ Solver: lbfgs\\ Activation: relu\end{tabular} & 10 & 1 & 12.061.462,50 \\
+    SVM               & normal  & $-\infty$          & 0.03          & 6 m              & sell\_all      & \begin{tabular}[c]{@{}c@{}}C: 0.03125\\ Gamma: 0.03125\end{tabular}                                & 10 & 1  & 8.927.041,53 \\
+    AdaBoost          & normal  & $-\infty$          & 0.01          & 6 m              & sell\_all      & Estimators: 50                                                                                     & 10 & 1 & 4.870.173,30  \\
+    Linear Regression & z-score & $-\infty$          & 0.03          & 6 m              & sell\_all      & -                                                                                                  & 10  & 1 & 1.736.454,84 \\
+    Random Forest     & z-score & 0             & $\infty$           & 1 y              & avoid\_fees   & Trees: 50                                                                                          & 50  & 12 & 131.105,80   \\
+    AdaBoost          & normal  & -0.01         & $\infty$           & 1 y              & sell\_all      & Estimators: 50                                                                                     & 100 & 1 & 95.609,18   \\
+    Neural Network    & normal  & -0.01         & $\infty$           & 1 y              & sell\_all      & \begin{tabular}[c]{@{}c@{}}Hidden Layer Sizes: 15\\ Solver: lbfgs\\ Activation: tanh\end{tabular}  & 10 & 1 & 33.913,25   \\
+    Linear Regression & z-score & -0.01         & $\infty$           & 1 y              & sell\_all      &                                                                                                    & 50 & 1 & 23.294,86   \\
+    SVM               & normal  & -0.03         & $\infty$           & 1 y              & avoid\_fees   & \begin{tabular}[c]{@{}c@{}}C: 2048\\ Gamma: 0.125\end{tabular}                                     & 100 & 1 & -59.198,42  \\ \hline
+    \end{tabular}
+    \label{tab:best_worst_models_3}
+
+\end{table}
+
+\end{landscape}

@@ -1,0 +1,240 @@
+\chapter{Methodology}
+\label{chap:methodology} 
+
+This chapter describes the system designed to conduct the experiments, the data sources and preprocessing used, the models trained, and how they are evaluated in terms of economic performance. The description of the parallelization is in Chapter~\ref{chap:parallelization}. All \HPCsys code is available at Github~\footnote{http://github.com/kafkasl/hpc.fassr}
+
+The whole project was developed in Python~\cite{python} because, thanks to being interpreted, allows fast prototyping, it is one of the most used languages for ML, and has a large number of great OSS libraries. This project relies mostly on Pandas~\cite{pandas}, Numpy~\cite{numpy}, and Scikit-learn~\cite{scikit-learn} libraries.
+
+% The idea is to create a system as close to a production system as possible while making it as flexible as possible to explore different, models, parametrizations, and datasets.
+
+The \HPCsys system involves the integration of many techniques required to explore different models, parametrizations, and datasets.
+Such a system has to deal with many different tasks, ranging from the low-level ones such as downloading the data programmatically via API, to higher level ones like simulating a trading environment, passing through parallelization requirements. To isolate responsibilities, the code has been divided into four main python modules: \textit{data\_manager}, \textit{training}, \textit{models}, and \textit{trading}. Figure~\ref{fig:pipeline} shows which part of the execution pipeline handles each module and which are its parameters. 
+The \textit{data\_manager} is responsible for downloading the data from Intrinio and merge it into the desired dataset. The models and parametrizations to be trained are defined in the \textit{models} module. The \textit{training} module uses the data and models provided by the \textit{data\_manager} and \textit{models} modules and trains them. Finally, the \textit{trading} module evaluates the models using their predictions to invest in a paper trading environment.
+The set of all parameters used in a model execution will be called a \textit{configuration}. A \textit{configuration} is the triplet $\langle P_d, P_t, P_e \rangle$, where $P_d$ are the parameters used to create the dataset; $P_t$ are the parameters used for training (the model, its arguments, and the amount of training data); and $P_e$ are the trading evaluation parameters like the trading frequency or the target metric to be used.
+
+%%A short  description of the four main modules should be given here.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1.1\textwidth]{images/pipeline_overview.png}
+    \caption{Overview of the different modules, stages, data, and parameters of the proposed stock evaluation framework.}
+    \label{fig:pipeline}
+\end{figure}
+
+\section{Data sources}
+
+% TODO add stock market index to glossary
+For this study, we used data from the S\&P 500 index. The S\&P 500 is an American stock market index formed by the 500 leading companies of the U.S. stock market. %The S\&P 500 Index. 
+Our selection does not include old S\&P500 constituents so the results may suffer from survivorship bias. However, as all models are tested with the same dataset, the comparisons among them are valid.
+
+The data was provided by Intrinio platform. Intrinio offers many Data Feeds which can be accessed via web API or bulk download. We used the web API of the US Company Fundamentals feed for the fundamental data, and the US Stock Prices feed for daily shares' price. Thanks to the web API \HPCsys downloads automatically the data required for the desired training.
+
+For the fundamental data, \HPCsys downloads from Intrinio the income statement, balance sheet, and cash flow statement for each quarter and stock. The three documents are merged and their dates adjusted to create a dataset where each row represents the financial information of a company on a given date.
+For the historical prices, we build a hashmap where the key $(s, d)$ contains the price of the stock $s$ the date $d$.
+
+
+\section{Data preprocessing}
+
+\subsection{Features}
+
+From the fundamentals dataset we compute the following indicators to be used by the learning models and the human expert (further details of these indicators can be found in \cite[Ch. 6.2]{AA14}):
+
+
+% TODO describe this in glossary and put them in a more compact format
+% Value indicators:
+
+\begin{itemize}
+    \item EPS $=\frac{NI - DivP}{WNSO}$
+    \item EPS growth $=\frac{\text{Current year}~EPS}{\text{Previous year}~EPS}$
+    \item BVPS $=\frac{\text{Assets} - \text{Liabilities}}{WNSO}$
+    \item Price to Earnings $=\frac{P}  {EPS}$
+    \item Price to Book $=\frac{P}{BVPS}$
+    \item Price to Revenue $=\frac{P}{R}$
+    \item Dividends to price $=\frac{DivP}{P}$
+    % TODO add formula
+    \item Dividend payout ratio $=\frac{DivP}{NI}$
+\end{itemize}
+
+% Performance measures: %% measures
+\begin{itemize}
+    \item ROE $=\frac{NI}{\text{Shareholder's equity}}$
+    \item ROIC $=\frac{NI + \text{ (after-tax interest)}}{\text{Invested Capital}}$
+    \item ROA $=\frac{NI + \text{ (after-tax interest)}}{\text{Total assets}}$
+\end{itemize}
+
+% Efficiency measures: %% measures
+\begin{itemize}
+    \item Asset turnover $=\frac{Sales}{\text{Total assets at start of year}}$
+    \item Inventory turnover $=\frac{\text{Costs of assets sold}}{\text{Inventory at start of year}}$
+    \item Profit margin $=\frac{NI}{Sales}$
+\end{itemize}
+
+% Leverage measures: %% measures
+\begin{itemize}
+    \item Debt ratio $=\frac{\text{Total liabilities}}{\text{Total assets}}$
+    \item Times-interest-earned ratio $=\frac{EBIT}{\text{Interest payments}}$
+\end{itemize}
+
+% Liquidity measures: %% measures
+\begin{itemize}
+    \item Revenue $=\text{Operating revenue}$
+    \item Working capital $=\text{Current assets} - \text{Current liabilities}$
+    \item Working capital to assets $=\frac{\text{Current assets} - \text{Current liabilities}}{\text{Current assets}}$
+    \item Current ratio $=\frac{\text{Current assets}}{\text{Current liabilities}}$
+\end{itemize}
+
+where,
+\begin{align*}
+    NI &= \text{net income}, \\
+    DivP &= \text{total amount of dividends} \\
+    WNSO &= \text{weighted average number of shares outstanding} \\
+    EBIT &= \text{earnings before interest and taxes} \\
+    P &= \text{share price} \\
+    R &= \text{revenue} \\
+\end{align*}
+
+
+If the financial statements of a company in a given quarter lack any field required to compute a fundamental indicator, the company is removed from that quarter data. This results in an average of ~190 companies per period.
+Since financial statements are available every quarter, one ends up with a small number of yearly training samples.
+To mitigate this problem, we applied oversampling as follows. Most of the indicators relate fundamental data with the stock price, the latter being available on a daily period.
+Hence, to generate new samples for a given date, we compute the indicator using the previous quarter's fundamental data adjusted to the stock price of the given date. For example, for the \textit{price to book value} indicator, we would divide the current stock price by the book value of the previous quarter. For the indicators which are not related to stock price (e.g., revenue) we use the latest available value.
+
+We considered two scaling methods: standard scaling and z-scores. When applying the standard scaling, we scale together all the data that will be used for training a model on a given period (i.e., one/two years of data). For the z-scores, we scale the data of each day separately. The idea behind our z-scores, is to normalize the indicators with respect to the mean and standard deviation of stocks within the same industry group, given by the first three digits of their Standard Industrial Classification (SIC) code, because they may have different trends.
+
+\subsection{Targets}
+
+For regression, we used the simple return, i.e., $y_{i, s} = \frac{r_{i, s}}{r_{i-1, s}}$, where $r_{i, s}$ is the return of stock $s$ for trading session $i$.
+For classification, we categorized the returns into \textit{long, neutral, short}. The thresholds were chosen using backtesting from the ranges $[-0.03, 0]$ and $[0, 0.03]$ with steps of $0.005$ for the top and bottom thresholds respectively. Stocks with a return higher than the top threshold are labeled as long, stocks with a return under the bottom threshold are labeled as short, the rest as neutral. 
+
+
+When we compare the regression and classification, we use the same thresholds to create the classification training data, and the ones used in regression to convert predictions into positions. Figure \ref{fig:regcla} shows the two spots at which these thresholds are applied for each model. 
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{images/reg_vs_cla.png}
+    \caption{Overview of the different data pipelines for classification and regression.} 
+    \label{fig:regcla}
+\end{figure}
+
+\section{Forecasting models}
+
+We used scikit-learn \cite{scikit-learn} implementations of the most popular machine learning predictors in literature: Neural Networks, Support Vector Machines, Random Forests, and AdaBoost.
+
+The system is designed to work with models that follow scikit-learn model's API~\cite{sklearn_api} so users can integrate their custom models by just implementing sklearn's interface. 
+Moreover, the system supports models that can run in more than one CPU (intra-node parallelism). Using the standard scikit-learn \textit{n\_jobs=number\_cpus} parameter and PyCOMPSs \textit{@constraint(ComputingUnits=number\_cpus)} decorator, a model can be trained with any desired number of CPUs. This highly increases the performance of embarrassingly parallel models like random forests.
+
+\subsection{Graham}
+The expert criteria that we programmed as a rule-based decision algorithm, and that is to compete against the above classifiers, is that of famous value investor Benjamin Graham. His rules for selecting value stocks, updated for inflation to present time,  are the following (see \cite[S. 6.2]{AA14} for details):
+the company should have at least USD 1.5B in revenues; 2-to-1 assets to liability ratio; positive earnings in each of the past ten years; uninterrupted payment of dividends; a 3\% of annual average growth in earnings;
+moderate P/E and P/B ratios. %%in practice we compounded this in the Graham number 
+% TODO extend graham description and maybe explain why he can be used with different frequencies.
+
+
+% TODO add reference to SVM.
+\subsection{Support Vector Machines}
+
+% Support vector machine models try to fit a hyperplane or a set of them, in a high-dimensional space and use them classification or regression.
+For SVM, we used the RBF kernel for all tests. For the parameter, we explored the $C \in [2^{-5}, 2^{15}]$ and $\gamma \in [2^{-15}, 2^{3}]$ multiplying both of them by $2^2$ each step.
+
+
+\subsection{Neural Networks}
+
+For the neural networks, we used the basic Multilayer Perceptron (MLP) with a  single hidden layer. We evaluate the following hidden layer sizes $[15, 50, 100, 500, 1000]$, the solvers Adam~\cite{kingma2014adam} and LBFGS~\cite{lbfgs}, and the activation functions \textit{hyperbolic tangent} and \textit{ReLU}.
+\subsection{Random Forests}
+
+For random forests, we vary the different number of trees in the ensemble. The sklearn version has a parameter \textit{n\_jobs} which controls how many threads the algorithm can use to run in parallel in a single node. We set this value to 12 CPUs, which one-quarter of a node in MN4, because it reported the best \emph{total} times empirically.
+
+\subsection{AdaBoost}
+
+For AdaBoost~\cite{adaboost}, we also vary the number of estimators in the ensemble. Unfortunately, AdaBoost version cannot be trained in parallel.
+
+\bigskip
+Further details about parametrizations can be found in Appendix~\ref{app:parametrizations}.
+
+
+\section{Experimental set-up and evaluation}
+
+We have evaluated the economic performance of all models taking long-short positions, trading every semester and year, using different scaling methods and models, different amounts of training data, and with different trading strategies. 
+
+The economic performance is evaluated by the \textit{trading} module. The \textit{trading} module simulates a backtesting paper trading environment for a given time interval. 
+
+We start by dividing the trading time interval into $n$ \textit{trading sessions}. Figure~\ref{fig:evaluation} shows the execution flow of a single trading session. The portfolio data structure and handling that stores the positions and available money of each session for posterior analysis is not shown for clarity's sake.
+
+For each \textit{trading session}, we apply the model to the input data to obtain the next period predictions. Depending on the type of model we get different information. For the categorical models, we get if we should short or long the stock, or remain neutral. For the regression models, we get the expected simple return.
+
+Next, we apply a \textit{selection function} (see \ref{subsec:selection_function}) to convert the predictions into recommendations.
+
+The last step is to create a new portfolio using a \textit{trading strategy} (see \ref{subsec:strategies}). The trading strategy takes as input the long-short recommendations, the previous portfolio, and the available money to decide which old positions should be closed and which new ones should be bought.
+
+\begin{figure}
+   \centering
+   \includegraphics[width=\textwidth]{images/paper_trading.png}
+   \caption{\small Example of a single iteration of the trading evaluation. This process is repeated for each trading session. The final portfolio and available money are the input for the next trading session.}
+   \label{fig:evaluation}
+\end{figure}
+%%
+After evaluating all models, we choose the best one according to the desired \textit{target metric}. Some examples of target metrics are the total profits, the average invested money, or a combination of them with the execution time (if we want a trade-off between accuracy and performance).
+
+
+\subsection{Transaction fees}
+
+ 
+Our goal is to create an automatic trading system that does not rely on humans, so we decided to use the fixed rate pricing of Interactive Brokers~\cite{ibrokers}'s (IB) python API which can be integrated with this project with minimal work. 
+%%
+Figure~\ref{eq:ibfees} shows how the IB fees are computed given the number of shares and its price. Essentially, the fees are \$ 0.005 per share, with a minimum of \$ 1 and a maximum of 1\% of the trade volume.
+%%
+\begin{figure}
+ \begin{align*}
+    Fees(s, p) &= 
+    \begin{cases}
+      1, & \text{if}\ f * s < 1 \\
+      0.01 * (s * p) & \text{if}\ f * s > maxFees \\
+      f * s, & \text{otherwise} \\
+    \end{cases} 
+    \notag\\
+    \text{where,} & \\
+    s &= \text{number of shares}, \\
+    p &= \text{price per share}, \\
+    f &= \text{fee per share in USD} &= 0.005  \\
+    maxFees &= \text{max fees per transaction in USD} &= 0.01 * (s * p) \\
+    minFees &= \text{min fees per transaction in USD} &= 1 \\
+\end{align*}
+\caption{Interactive Brokers fixed rate fees. Applied to each transaction during the paper trading evaluation of the models.}
+\label{eq:ibfees}
+\end{figure}
+%%
+IB does not allow to buy fractions, so all the trading is done buying only whole shares. Buying shares by units creates a residue of money. This remainder is used differently depending on the trading strategy.
+
+
+\subsection{Selection function}
+\label{subsec:selection_function}
+
+The \textit{selection function} is used to convert the model's predictions into desired positions. We introduced this function because depending on the model (regression or classification) and the task type (ranking or screening) the input and desired output are different. Moreover, we wanted to provide the flexibility of applying different policies to the model's predictions (like going long for all positive stocks for stock ranking or just the best $k$).
+
+For example, when are performing stock screening, the regressors' predictions are converted into a long positions if the expected returns are higher than the top threshold, to a short positions if the returns are lower than the bottom threshold, and the rest are discarded. For classifiers, the predictions are already the desired positions, and we only have to discard the neutral ones.
+
+However, when we are performing stock ranking, the \textit{selection function} is responsible for ranking the stocks by their expected returns, and converting the top $k$ stocks into long positions, the bottom $k$ to short positions and discard rest.
+
+\subsection{Trading strategies}
+\label{subsec:strategies}
+We designed different strategies to be used on paper trading. All strategies start with USD 100K. The difference between the strategies is how they choose the new positions of the portfolio, given the positions of the previous portfolio, the available money, and the recommendations. Appendix~\ref{app:strategies} contains the pseudocode of both trading strategies.
+
+\textbf{Avoid fees}
+
+This strategy is focused on having a portfolio of 20 stocks (which is between the 10 and 30 as suggested by Graham \cite{grahambook}) while trying to minimize the fees paid. 
+
+To start - or when the last portfolio is empty - the available money is used to buy 20 stocks (dividing the capital equally among the chosen stocks). If the models recommend less than twenty stocks, the remainder is not spent, it is kept for the next trading session.
+
+
+For trading sessions when the last portfolio is not empty, the strategy is as follows. If a stock recommended by the model is already present in the portfolio, the position is maintained (thus avoiding any transaction and fee). The rest of the positions are sold. The money obtained from selling the positions is used to buy stocks (from the recommended ones) up to a maximum of 20 for stock screening and to $2*k$ for stock ranking.
+Again, if there are not enough recommendations to buy up to the maximum, the remainder is kept for the next session. If all the portfolio's positions are among the recommended ones, there are no transactions. 
+
+If at any step, the available money is not enough to open some position, then it is stashed for future sessions.
+
+
+\textbf{Buy-Sell all}
+
+The previous \textit{avoid fees} strategy can hide many performance details (e.g., if the initial 20 stocks are always recommended, all the other predictions will be ignored). This strategy tries to address that possible issue by selling and buying all the recommendations on each trading session. The strategy will incur in higher fees, but the relation between the recommendations and the actual positions is clear: all recommendations always become positions (if there is enough money available).
+
+This will ease the performance analysis of the models. For example, if a model tends to overestimate returns, this will result in a high number of open positions. 
+

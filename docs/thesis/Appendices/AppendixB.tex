@@ -1,0 +1,63 @@
+\chapter{Trading strategies pseudocode} % Main appendix title
+\label{app:strategies}
+
+Figure~\ref{fig:avoid_fees_pseudo} shows how the portfolio positions are updated with the recommendations with the trading strategy that focuses on avoiding fees.
+\begin{figure}
+    \begin{verbatim}
+        update_positions(available_money,
+                         old_positions, 
+                         recommendations, 
+                         portfolio_size):
+                         
+            new_positions = [] # empty list
+            for each position in old_positions:
+                if position $\in$ recommendations:
+                    new_positions.append(position)
+                else:
+                    profits += sell(position)            
+            pending_stocks = portfolio_size - length(new_positions)
+            money_per_stock = available_money / pending_stocks
+            
+            while pending_stocks > 0
+                stock = choose next(recommendation) in alphabetical order 
+                position, cost = buy(stock, money_per_stock)
+                if money_per_stock is enough to open the position:
+                    new_positions.append(position)
+                  available_money - cost
+                  pending_stocks -= 1
+            
+            return new_positions
+    \end{verbatim}
+    \caption{Pseudocode showing how the positions are updated with the \textit{avoid fees}  strategy each trading session given the available amount of money, the old positions, a set of recommendations, and a desired portfolio size.}
+    \label{fig:avoid_fees_pseudo}
+\end{figure}
+
+Figure~\ref{fig:sell_all_pseudo} shows how the portfolio positions are updated with the \textit{avoid fee}  with the recommendations with the trading strategy that sells and buys all positions at each session.
+
+\begin{figure}
+    \begin{verbatim}
+        update_positions(available_money, 
+                         old_positions,
+                         recommendations,
+                         portfolio_size):
+                         
+            new_positions = [] # empty list
+            for each position in old_positions:
+                profits += sell(position)            
+
+            pending_stocks = portfolio_size - length(new_positions)
+            money_per_stock = available_money / pending_stocks
+            
+            while pending_stocks > 0
+                stock = choose next(recommendation) in alphabetical order 
+                position, cost = buy(stock, money_per_stock)
+                if money_per_stock is enough to open the position:
+                    new_positions.append(position)
+                  available_money - cost
+                  pending_stocks -= 1
+            
+            return new_positions
+    \end{verbatim}
+    \caption{Pseudocode showing how the positions are updated with the \textit{buy/sell all}  strategy each trading session given the available amount of money, the old positions, a set of recommendations, and a desired portfolio size.}
+    \label{fig:sell_all_pseudo}
+\end{figure}

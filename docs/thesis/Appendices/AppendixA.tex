@@ -1,0 +1,53 @@
+\chapter{Parametrizations}
+\label{app:parametrizations}
+
+This Appendix lists the most important parameters used to train each of the machine learning models. All implementations come from scikit-learn version 0.20.3, so the parameters not listed are the default values provided by the library.
+
+When expressing ranges, we use the python notation $range(min, max, step)$ where $min$ and $max$ are the lower and upper bounds respectively, and step is the distance between two consecutive items.
+
+The following parameters are common for all models:
+
+\begin{itemize}
+    \item Scaling = \textit{standard}, \textit{z-scores}
+    \item Trading frequency = \textit{semester}, \textit{year}
+    \item Training data = $1, 2$ years
+    \item Trading strategies = \textit{avoid\_fees}, \textit{sell\_all}
+    \item K (stock ranking) = $10, 25, 50$
+\end{itemize}
+
+\section{SVM}
+\begin{itemize}
+    \item Kernel = \textit{RBF}
+    \item C = $[2^i~ \forall i \in range(-5, 15, 2)]$
+    \item Gamma = $[2^i~ \forall i \in range(-15, 3, 2)]$
+\end{itemize}
+
+
+\section{Random Forest}
+\begin{itemize}
+    \item Number of trees = $[50, 100, 250, 500]$
+    \item Criterion = \textit{Gini Index}
+    \item Max features tested = $\sqrt{\text{n\_features} } $
+    \item Sample Bootstraping = \textit{True}
+\end{itemize}
+
+
+
+\section{Neural network}
+
+\begin{itemize}
+    \item Size of the hidden layer = $[5, 10, 15, 20, 30, 50, 100, 200, 500]$
+    \item Activation function = \textit{tanh}, \textit{ReLU}
+    \item Solver = \textit{LBFGS}, \textit{Adam}
+    \item L2 penalty regularization = 0.0001
+    \item Early stopping = \textit{False}
+\end{itemize}
+
+\section{AdaBoost}
+
+\begin{itemize}
+    \item Number of estimators = $[50, 100, 250, 500]$
+    \item Boosting algorithm = \textit{SAMME.R}~\cite{samme}
+    \item Base estimator = \textit{decision tree ($\text{max\_depth} = 1$})
+\end{itemize}
+

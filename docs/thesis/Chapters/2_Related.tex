@@ -1,0 +1,47 @@
+\chapter{Related Work}
+\label{chap:related}
+
+Much effort has been put into trying to reject the Efficient Market Hypothesis (EMH) because, if true, it would mean that using machine learning models to gain an advantage in stock markets is not possible. However, initial models used for prediction were simple linear statistical models~\cite{emh}, and many relied on expert's criteria to guide the model construction. With the increase in computing power more sophisticated models became practical and trainable in relatively short times. Recent works like~\cite{fischer2018deep} apply state-of-the-art time series forecasting models to successfully predict future prices as well as using the model's criteria to gain further insight into the best/worst investments. However, the most often used traditional time series forecasting models do not include any kind of macroeconomic information~\cite{zivot2007modeling}.
+
+It has become more a trend in this new millennium to combine historical prices and financial indicators (exogenous variables) to predict stock prices and make automatic financial decisions. As in ~\cite{sevastjanov2009stock}, where a multifactor model is built using the correlation between performance and financial health  for stock ranking; or in
+ \cite{andriyashin2008recursive}, where the authors take advantage of the interpretability of decision trees to build a forecasting model based on technical and fundamental financial indicators and analyze the importance of each financial factor.
+
+However, explainable tree-based methods are being superseded by new and improved deep learning models. Krauss et al.~\cite{krauss2017deep} compare the performance of deep neural networks, gradient-boosted trees, and random forests to perform statistical arbitrage on the S\&P 500. Their results are promising and challenge the semi-strong form of market efficiency. Moreover, they find that pooling together all models' results in an equal-weighted ensemble produces the best returns. 
+
+Aside from research, there are websites such as Quantopian~\cite{quantopian} which offer the possibility of coding,  evaluating, and generally conducting algorithmic finance research online. These platforms usually provide easy interfaces, such as Jupyter notebook~\cite{jupyter}, so that users can avoid all the hassle of downloading and curating the data, as well as setting up all the training and paper trading evaluation. In exchange, many of them offer some kind of agreement so that they can take profit out of the best algorithms designed. However, these platforms offer limited computing resources (often allowing only to evaluate a single model each time), and they cannot be modified if some desired feature is missing. Moreover, they tend to offer the data only inside their platform, so usually, it is not even possible to reproduce the results obtained.
+
+
+
+% If 
+% \ref{Document 1} proposes the use of z-scores and aggregate models; we use this idea to compute the z-scores of our input data by grouping them by industry sector. 
+
+
+% \textbf{Document 1 Stock Screening and Ranking, Missing reference}
+
+% Explains the basic process of stock screening and ranking. Uses z-scores and aggregate models; e.g. group indicators and the use a weighting factor over the group instead of just the indicators. Explores a bit more in-depth different options to compute the weights but basically settles on z-scores with linear regression to learn the weights. Has a final appendix with different experts' criteria described both textual and as a set of steps to actually do the stock screening.
+
+% \textbf{Document 2 Guide to credit scoring in R}
+
+% Not used nor read because I code in python. However has some nice plots and evaluation techniques like ROC curves, or model selection with AUC. Uses many predictors such as bayesian networks, decision trees, conditional inference trees, random forest, logistic regression + trees. May be interesting to have a look only if I have a lot of time.
+
+
+% \textbf{Document 3 Part of Argimiro's Book \cite{AA14}}
+
+% Explains fundamental analysis starting with the three basic documents: Cash flow statement, Balance sheet, and Income statement. Continues explaining what are indicators and how are computed many of them using the information of the 3 docs. Finishes with detailed Graham's conditions for picking stocks.
+
+% \textbf{Document 4 Stock screening with use of multiple criteria decision making and optimization \cite{sevastjanov2009stock}}
+
+% This is the paper which is very poorly written. They use financial + technical indicators to determine the health of a company. The motto there is that company performance added to financial indicators of the past year are relevant. The contribution would be the way to combine them (they propose 3: weighted sum, multiplicative, and min operator). They correlate the financial health with market performance and use these ratios to select/rank. Maybe I could cite them in RW but no much more.
+
+% \textbf{Document 5 Deep learning with long short-term memory networks for financial market predictions \cite{fischer2018deep}}
+
+% Benchmark of technical analysis prediction using RAF vs. LSTM. Well organized and can be cited many times because of their more than correct experimental setup (may inspire myself also). Worth leafing through it before writing my thesis. Has very nice plots at the end which analyze the patterns detected by the LSTM; e.g. they take the top/bottom 'k' stocks of the  ranking and plot some of their indicators. This indicators show a clear trend, in their case basically rapid reversal after stable trends. They extract some more things after that. Worth citing as a work focused only on a single stock information not taking into account 'market' indicators.
+
+
+% \textbf{Document 6 Modeling financial time series with S-Plus \cite{zivot2007modeling}}
+
+% I didn't read all the document because it's a bit outdated (uses S-Plus). However, could be referenced because it talks about 'macroeconomic' factors in the models which led me to think about: most models only use the stock's individual information (both in technical and fundamental) without adding 'market' or external information. Our approach, using the z-scores, may well be adding these factors implicitly in the z-scores.
+
+% \textbf{Document 7 Recursive Portfolio Selection with Decision Trees \cite{andriyashin2008recursive}}
+
+% The decision trees document. Goes into a lot of detail explaining DT. Uses mixed indicators to build them, but again does not include market information. I used their 'method' to categorize the target increments into \textit{high}, \textit{neutral}, and \textit{short}. Should check how they report the results (sharpe ratios, kurtosis, and stuff like that). 
