@@ -1,12 +1,8 @@
-import os
 from math import sqrt
 
-import numpy as np
 import pandas as pd
 
 from models.portfolio import Portfolio, Position
-from settings.basic import DATA_PATH
-from utils import load_obj
 
 
 def get_share_price(prices, day, symbol):
@@ -18,13 +14,9 @@ def debug_selector(df_trade, day, clf_name, trading_params):
                ['y', 'y', 'symbol', 'price']], \
            df_trade.loc[[day]].query('symbol=="OKE"')[
                ['y', 'y', 'symbol', 'price']]
-    # return df_trade.loc[[day]].query('symbol=="EIX"')[
-    #            ['y', 'y', 'symbol', 'price']], df_trade.loc[
-    #            [day]].query('symbol=="NONE"')
 
 
 def get_k_best(df_trade, day, clf_name, trading_params):
-
     # sort by predicted increment per stock of classifier clf_name
     df_clf = df_trade[['y', clf_name, 'symbol', 'price']]
     df_aux = df_clf.loc[[day]].sort_values(clf_name)
@@ -36,8 +28,6 @@ def get_k_best(df_trade, day, clf_name, trading_params):
     botk = df_aux.iloc[0:k].query('%s<%s' % (clf_name, bot_thresh))
     topk = df_aux.iloc[-k - 1: -1].query('%s>%s' % (clf_name, top_thresh))
 
-    # import ipdb
-    # ipdb.set_trace()
     return topk, botk
 
 
@@ -45,10 +35,10 @@ def get_k_random(df_trade, day, clf_name, trading_params):
     df_trade = df_trade[['y', 'y', 'symbol', 'price']]
     k = trading_params['k']
 
-    sample_size = min(len(df_trade), 2*k)
+    sample_size = min(len(df_trade), 2 * k)
     samples = df_trade.sample(n=sample_size)
-    topk = samples.iloc[:len(samples)//2]
-    botk = samples.iloc[len(samples)//2:]
+    topk = samples.iloc[:len(samples) // 2]
+    botk = samples.iloc[len(samples) // 2:]
     return topk, botk
 
 
@@ -84,8 +74,6 @@ def graham_screening(df_trade, day, clf_name, trading_params):
         except KeyError:
             # This symbol has no fundamental data for the current day. We just
             # skip it.
-            # print("Day [%s] for symbol %s not found in index." % (day, symbol))
-            # full_print(df_aux)
             continue
 
         # TODO where is the 2 * assets > liabilities
@@ -298,70 +286,46 @@ def update_positions_avoiding_fees(prices, day, available_money, positions,
     return available_money, new_positions
 
 
-def model_trade(df_trade, indices, prices, clf_name, trading_params: dict, dates):
-    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
+def model_trade(df_trade, indices, prices, clf_name, trading_params: dict,
+                dates):
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices,
+                       clf_name=clf_name,
                        trading_params=trading_params, selector_f=get_k_best)
 
 
-# def random_trade(df_trade, prices, clf_name, trading_params: dict):
-#     indices = sorted(
-#         [day for day in list(set(df_trade.index.values)) if day <= final_date])
-#     print("Monkey-Dart trading for %s" % clf_name)
-#
-#     portfolios = []
-#
-#     positions = []
-#     stash = 1000
-#
-#     for day in indices:
-#         topk, botk = get_k_random(df_trade, day, clf_name, trading_params)
-#         print("Random getting topk, botk = %s, %s" % (len(topk), len(botk)))
-#
-#         pf = Portfolio(day, cash=stash, positions=positions)
-#
-#         portfolios.append(pf)
-#
-#         old_positions = positions
-#         old_stash = stash
-#         stash, positions = update_positions(prices, day, old_stash,
-#                                             old_positions, botk, topk)
-#
-#     return portfolios
-
-
 def random_trade(df_trade, indices, prices, clf_name, trading_params, dates):
-    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices,
+                       clf_name=clf_name,
                        trading_params=trading_params,
                        selector_f=get_k_random)
 
+
 def debug_trade(df_trade, indices, prices, clf_name, trading_params, dates):
-    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices,
+                       clf_name=clf_name,
                        trading_params=trading_params,
                        selector_f=debug_selector)
 
 
 def graham_trade(df_trade, indices, prices, clf_name, trading_params, dates):
-    return paper_trade(df_trade=df_trade, indices=indices, prices=prices, clf_name=clf_name,
+    return paper_trade(df_trade=df_trade, indices=indices, prices=prices,
+                       clf_name=clf_name,
                        trading_params=trading_params,
                        selector_f=graham_screening)
 
 
-def paper_trade(df_trade, indices, prices, clf_name, trading_params, selector_f):
+def paper_trade(df_trade, indices, prices, clf_name, trading_params,
+                selector_f):
     start_date, final_date = trading_params['dates']
     print("Starting trading for %s: %s from [%s-%s] every %s" % (
         clf_name, trading_params['mode'], start_date, final_date,
         trading_params['trade_frequency']))
 
-    # start_date = np.datetime64(start_date)
-    # final_date = np.datetime64(final_date)
     if trading_params['mode'] == 'sell_all':
         update_positions = update_positions_buy_sell_all
     elif trading_params['mode'] == 'avoid_fees':
         update_positions = update_positions_avoiding_fees
 
-
-    # import ipdb
-    # ipdb.set_trace()
     portfolios = []
     positions = []
     stash = 100000
@@ -372,7 +336,6 @@ def paper_trade(df_trade, indices, prices, clf_name, trading_params, selector_f)
 
         topk, botk = selector_f(df_trade, day, clf_name, trading_params)
 
-
         old_positions = positions
         old_stash = stash
         stash, positions = update_positions(prices, day, old_stash,
@@ -382,6 +345,5 @@ def paper_trade(df_trade, indices, prices, clf_name, trading_params, selector_f)
 
         portfolios.append(pf)
 
-    # portfolios.append(Portfolio(indices[-1], cash=stash, positions=positions))
     print("Finished trading for %s" % clf_name)
     return portfolios

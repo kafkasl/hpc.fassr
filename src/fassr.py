@@ -10,7 +10,7 @@ from pycompss.api.api import compss_wait_on
 from data_managers.data_collector import get_data, get_prices
 from models.classifiers import *
 from settings.basic import PROJECT_ROOT, DATA_PATH
-from training import explore_models
+from training.train import explore_models
 from utils import save_obj, get_headers, format_line, load_obj, exists_obj, \
     get_datasets_name
 
@@ -179,9 +179,11 @@ if __name__ == '__main__':
                                 target_shift=trade_frequency)
 
     # Log some execution information for easy access
-    print("Models to train: [%s]" % np.sum([len(v[1]) for v in classifiers.values()]))
+    print("Models to train: [%s]" % np.sum(
+        [len(v[1]) for v in classifiers.values()]))
     pprint(classifiers)
-    print("Datasets created [%s] : %s\nArgs: %s" % (len(datasets), datasets.keys(), args))
+    print("Datasets created [%s] : %s\nArgs: %s" % (
+        len(datasets), datasets.keys(), args))
 
     results = {}
     total_jobs = 0
@@ -190,19 +192,20 @@ if __name__ == '__main__':
     for mode in trade_modes:
         for trade_frequency in trade_frequencies:
 
-            for dataset_name, (df, magic_number, (thresholds)) in datasets.items():
+            for dataset_name, (
+                    df, magic_number, (thresholds)) in datasets.items():
                 trading_params = {'k': args.k,
                                   'bot_thresh': thresholds[0],
                                   'top_thresh': thresholds[1],
                                   'mode': mode,
                                   'trade_frequency': trade_frequency,
-                                  'dates': (trade_start_date, trade_final_date)}
+                                  'dates': (
+                                      trade_start_date, trade_final_date)}
 
                 results[dataset_name + ':' + mode], jobs = explore_models(
                     classifiers=classifiers, df=df, prices=prices,
                     dataset_name=dataset_name, magic_number=magic_number,
-                    save_path=save_path, trading_params=trading_params,
-                    dates=dates)
+                    trading_params=trading_params, dates=dates)
                 total_jobs += jobs
 
     # Log information about the execution

@@ -9,8 +9,8 @@ from string import Template
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
+from data_managers.tags import Tags
 from settings.basic import DATE_FORMAT, DATA_PATH, CACHE_ENABLED
-from tags import Tags
 from utils import call_and_cache, save_obj, load_symbol_list
 
 
@@ -29,10 +29,6 @@ class FundamentalsCollector(object):
 
         self.version = 0.2
 
-        # attrs = load_obj('../data/intrinio_tags_%s' % symbols_list_name)
-        # self.extended_symbols = list(set().union(*attrs.values()))
-
-        # self.ordered_symbols = self.basic_symbols + self.extended_symbols
         self.ordered_symbols = Tags.all()
 
         # Common module constants
