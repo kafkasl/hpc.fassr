@@ -12,7 +12,7 @@ from models.classifiers import *
 from settings.basic import PROJECT_ROOT, DATA_PATH
 from training.train import explore_models
 from utils import save_obj, get_headers, format_line, load_obj, exists_obj, \
-    get_datasets_name
+    get_datasets_name, dict_to_str
 
 
 def load_prices(prices_list='sp500'):
@@ -29,7 +29,7 @@ def load_prices(prices_list='sp500'):
     return prices
 
 
-def wait_results(results, log=False, datasets=None):
+def wait_results(results, f, log=False, datasets=None):
     clean_results = []
     for dataset_name, portfolios in results.items():
         # wait on everything
@@ -40,10 +40,10 @@ def wait_results(results, log=False, datasets=None):
                 pfs, total_time = res
                 portfolios[clf_name][i] = (model_params, trading_params, res)
                 if log:
-                    print(format_line(dataset_name, clf_name,
+                    f.write(format_line(dataset_name, clf_name,
                                       datasets[dataset_name.split(':')[0]][1],
                                       trading_params,
-                                      model_params, pfs, total_time))
+                                      model_params, pfs, total_time) + '\n')
                 params = (dataset_name, clf_name, model_params, trading_params,
                           total_time)
                 clean_results.append((params, pfs))
@@ -121,6 +121,19 @@ def get_trade_mode(trade_mode: str):
     return trade_modes
 
 
+def log_info(args, classifiers, datasets):
+    print(" * Arguments:")
+    for k,v in args.__dict__.items():
+        print("\t- %s: %s" % (k.title(), v))
+    print("\n\n * Models to train: [%s]" % np.sum(
+        [len(v[1]) for v in classifiers.values()]))
+    for k,v in classifiers.items():
+        print('\n\t- ' + k)
+        for p in [e for e in v[1] if e]:
+            print('\t\t' + dict_to_str(p))
+    print("\n\n * Datasets created: %s: \n%s\n" % (
+        len(datasets), '\n\t- '.join(datasets.keys())))
+
 if __name__ == '__main__':
     start_time = time()
     parser = argparse.ArgumentParser()
@@ -159,7 +172,7 @@ if __name__ == '__main__':
     trade_frequency = args.trade_frequency
     exp = args.experiment
     symbols_list_name = args.symbols
-    save_path = args.save_path
+    save_path = os.path.abspath(args.save_path)
     classifiers, thresholds_list = get_exp_specific_data(args.debug, exp)
     trade_modes = get_trade_mode(args.trade_mode)
 
@@ -178,12 +191,10 @@ if __name__ == '__main__':
                                 mode=args.datasets,
                                 target_shift=trade_frequency)
 
+
     # Log some execution information for easy access
-    print("Models to train: [%s]" % np.sum(
-        [len(v[1]) for v in classifiers.values()]))
-    pprint(classifiers)
-    print("Datasets created [%s] : %s\nArgs: %s" % (
-        len(datasets), datasets.keys(), args))
+    log_info(args, classifiers, datasets)
+
 
     results = {}
     total_jobs = 0
@@ -208,19 +219,24 @@ if __name__ == '__main__':
                     trading_params=trading_params, dates=dates)
                 total_jobs += jobs
 
+
+    exec_id = uuid4().hex[:8]
+    result_file = open(os.path.join(save_path, 'results_%s.csv' % exec_id), 'w')
+
     # Log information about the execution
     print(
         "Tasks launched: \n\t* Get data: %s\n\t* Training: %s\n\t* Total: %s" %
         (4 * len(datasets), total_jobs, 1 + 4 * len(datasets) + total_jobs))
 
     # Print the models performance as the tasks finish.
+    result_file.write(get_headers(trading_params) + '\n')
     print(get_headers(trading_params))
-    clean_results = wait_results(results, log=True, datasets=datasets)
+    clean_results = wait_results(results, log=True, datasets=datasets, f=result_file)
     total_time = time()
 
     # Save the py object containing all Portfolios for each model.
     save_obj(clean_results, os.path.join(save_path, 'clean_results_%s_%s' % (
-        symbols_list_name, uuid4().hex[:8])))
+        symbols_list_name, exec_id)))
 
     # Print each portfolio per trading session for each model.
     print(clean_results)
